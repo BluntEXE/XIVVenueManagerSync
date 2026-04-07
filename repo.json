@@ -4,7 +4,7 @@
      "Name": "XIVVenueManagerSync",
      "Punchline": "Sync patron visits with XIVVenueManager",
      "Description": "Automatically sync patron enter/leave events to your XIVVenueManager.",
-     "InternalName": "XIVVenueManager",
+     "InternalName": "VenueManager",
      "AssemblyVersion": "1.0.0",
      "RepoUrl": "https://github.com/BluntEXE/XIVVenueManagerSync",
      "ApplicableVersion": "any",
