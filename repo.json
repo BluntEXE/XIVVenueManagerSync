@@ -1,0 +1,22 @@
+   [
+    {
+     "Author": "Ehno",
+     "Name": "XIVVenueManagerSync",
+     "Punchline": "Sync patron visits with XIVVenueManager",
+     "Description": "Automatically sync patron enter/leave events to your XIVVenueManager.",
+     "InternalName": "XIVVenueManagerSync",
+     "AssemblyVersion": "1.0.0",
+     "RepoUrl": "https://github.com/BluntEXE/XIVVenueManagerSync",
+     "ApplicableVersion": "any",
+     "Tags": ["venue", "sync", "xivapp"],
+     "DalamudApiLevel": 14,
+     "LoadRequiredState": 0,
+     "LoadSync": false,
+     "CanUnloadAsync": false,
+     "LoadPriority": 0,
+     "IconUrl": "https://raw.githubusercontent.com/BluntEXE/XIVVenueManagerSync/main/images/icon.png",
+     "DownloadLinkInstall": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v1.0.0/XIVVenueManagerSync.zip",
+     "DownloadLinkUpdate": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v1.0.0/XIVVenueManagerSync.zip",
+     "DownloadLinkTesting": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v1.0.0/XIVVenueManagerSync.zip"
+    }
+   ]
