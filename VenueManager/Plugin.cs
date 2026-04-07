@@ -24,7 +24,7 @@ namespace VenueManager
   {
     public const int POP_TRACK_INTERVAL = 1000;
 
-    public string Name => "Venue Manager";
+    public string Name => "XIVVenueManagerSync";
     private const string CommandName = "/venue";
     private const string CommandNameAlias = "/vm";
     private const string CommandNameAlias2 = "/club";
@@ -33,7 +33,7 @@ namespace VenueManager
     [PluginService] public static IFramework Framework { get; private set; } = null!;
     [PluginService] public static IDataManager DataManager { get; private set; } = null!;
     [PluginService] public static ITextureProvider TextureProvider { get; private set; } = null!;
-    // Game Objects 
+    // Game Objects
     [PluginService] public static IObjectTable Objects { get; private set; } = null!;
     [PluginService] public static IPlayerState PlayerState  { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
@@ -46,8 +46,8 @@ namespace VenueManager
     public Dictionary<long, GuestList> guestLists = new();
     public int currentVisitorCount = 0;
 
-    // Windows 
-    public WindowSystem WindowSystem = new("VenueManager");
+    // Windows
+    public WindowSystem WindowSystem = new("XIVVenueManager");
     private MainWindow MainWindow { get; init; }
     private NotesWindow NotesWindow { get; init; }
 
@@ -56,13 +56,19 @@ namespace VenueManager
     private Stopwatch popStopwatch = new();
     private DoorbellSound doorbell;
 
-    // True for the first loop that a player enters a house 
+    // XIV-App API Client
+    private XIVAppApiClient? xivAppClient;
+    public List<XIVAppVenue> xivAppVenues = new();
+    public List<Service> availableServices = new();
+    public string? currentXivAppVenueId;
+
+    // True for the first loop that a player enters a house
     private bool justEnteredHouse = false;
 
     private bool running = false;
 
     public Plugin()
-    {            
+    {
       ImPlot.SetImGuiContext(ImGui.GetCurrentContext());
       ImPlot.SetCurrentContext(ImPlot.CreateContext());
 
@@ -70,14 +76,22 @@ namespace VenueManager
       this.venueList = new VenueList();
       this.venueList.load();
 
-      // Default guest list 
+      // Default guest list
       this.guestLists.Add(0, new GuestList());
       this.guestLists[0].load();
-      // Create default fake outside event 
+      // Create default fake outside event
       this.guestLists.Add(1, GuestList.getOutdoorList());
 
       this.Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
       this.Configuration.Initialize(PluginInterface);
+
+      // Initialize XIV-App API Client if configured
+      if (!string.IsNullOrEmpty(Configuration.xivAppApiKey))
+      {
+          xivAppClient = new XIVAppApiClient();
+          xivAppClient.Configure(Configuration.xivAppApiKey, Configuration.xivAppServerUrl);
+          Log.Information("XIV-App API Client configured with server: {0}", Configuration.xivAppServerUrl);
+      }
 
       MainWindow = new MainWindow(this);
       NotesWindow = new NotesWindow(this);
@@ -96,16 +110,16 @@ namespace VenueManager
 
       PluginInterface.UiBuilder.Draw += DrawUI;
 
-      // Bind territory changed listener to client 
+      // Bind territory changed listener to client
       ClientState.TerritoryChanged += OnTerritoryChanged;
       Framework.Update += OnFrameworkUpdate;
       ClientState.Logout += OnLogout;
 
-      // Load Sound 
+      // Load Sound
       doorbell = new DoorbellSound(this, Configuration.doorbellType);
       doorbell.load();
 
-      // Run territory change one time on boot to register current location 
+      // Run territory change one time on boot to register current location
       OnTerritoryChanged(ClientState.TerritoryType);
 
       // This adds a button to the plugin installer entry of this plugin which allows
@@ -118,12 +132,12 @@ namespace VenueManager
 
     public void Dispose()
     {
-      // Remove framework listener on close 
+      // Remove framework listener on close
       Framework.Update -= OnFrameworkUpdate;
-      // Remove territory change listener 
+      // Remove territory change listener
       ClientState.TerritoryChanged -= OnTerritoryChanged;
 
-      // Dispose our sound file 
+      // Dispose our sound file
       doorbell.disposeFile();
 
       this.WindowSystem.RemoveAllWindows();
@@ -183,7 +197,7 @@ namespace VenueManager
 
     private void OnLogout(int type, int code)
     {
-      // Erase territory state 
+      // Erase territory state
       pluginState.territory = 0;
 
       leftHouse();
@@ -194,12 +208,12 @@ namespace VenueManager
 
     private unsafe void OnTerritoryChanged(ushort territory)
     {
-      // Save current user territory 
+      // Save current user territory
       pluginState.territory = territory;
 
-      // Reset tracking outside 
+      // Reset tracking outside
       pluginState.isTrackingOutside = false;
-      // Clear outdoor events list 
+      // Clear outdoor events list
       guestLists[1].guests = new();
 
       bool inHouse = false;
@@ -212,14 +226,14 @@ namespace VenueManager
         Log.Warning("Could not get housing state on territory change. " + ex.Message);
       }
 
-      // Player has entered a house 
+      // Player has entered a house
       if (inHouse)
       {
         justEnteredHouse = true;
         pluginState.userInHouse = true;
         startTimers();
       }
-      // Player has left a house 
+      // Player has left a house
       else if (pluginState.userInHouse)
       {
         leftHouse();
@@ -245,10 +259,10 @@ namespace VenueManager
     private void leftHouse()
     {
       pluginState.userInHouse = false;
-      pluginState.currentHouse = new Venue(); // Erase venue when leaving 
+      pluginState.currentHouse = new Venue(); // Erase venue when leaving
       stopwatch.Stop();
       webserviceStopwatch.Stop();
-      // Unsnooze if leaving a house when snoozed 
+      // Unsnooze if leaving a house when snoozed
       if (pluginState.snoozed) OnSnooze();
     }
 
@@ -261,27 +275,27 @@ namespace VenueManager
       running = true;
       try
       {
-        // Every second we are in a house or tracking outside event. Process players and see what has changed 
+        // Every second we are in a house or tracking outside event. Process players and see what has changed
         if ((pluginState.userInHouse || pluginState.isTrackingOutside) && stopwatch.ElapsedMilliseconds > 1000)
         {
-          // Fetch updated house information 
+          // Fetch updated house information
           if (pluginState.userInHouse)
           {
             try
             {
               var housingManager = HousingManager.Instance();
               var worldId = PlayerState.CurrentWorld.Value.RowId;
-              // If the user has transitioned into a new house. Store that house information. Ensure we have a world to set it to 
+              // If the user has transitioned into a new house. Store that house information. Ensure we have a world to set it to
               if (pluginState.currentHouse.houseId != (long)housingManager->GetCurrentIndoorHouseId().Id)
               {
                 pluginState.currentHouse.houseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
-                pluginState.currentHouse.plot = housingManager->GetCurrentPlot() + 1; // Game stores plot as -1 
-                pluginState.currentHouse.ward = housingManager->GetCurrentWard() + 1; // Game stores ward as -1 
+                pluginState.currentHouse.plot = housingManager->GetCurrentPlot() + 1; // Game stores plot as -1
+                pluginState.currentHouse.ward = housingManager->GetCurrentWard() + 1; // Game stores ward as -1
                 pluginState.currentHouse.room = housingManager->GetCurrentRoom();
                 pluginState.currentHouse.type = (ushort)HousingManager.GetOriginalHouseTerritoryTypeId();
                 pluginState.currentHouse.district = TerritoryUtils.getDistrict((long)housingManager->GetCurrentIndoorHouseId().Id);
 
-                // Load current guest list from disk if player has entered a saved venue 
+                // Load current guest list from disk if player has entered a saved venue
                 if (venueList.venues.ContainsKey(pluginState.currentHouse.houseId))
                 {
                   var venue = venueList.venues[pluginState.currentHouse.houseId];
@@ -293,7 +307,7 @@ namespace VenueManager
             }
             catch
             {
-              // Typically fails first time after entering a house 
+              // Typically fails first time after entering a house
               running = false;
               return;
             }
@@ -308,35 +322,35 @@ namespace VenueManager
           bool playerArrived = false;
           int playerCount = 0;
 
-          // Object to track seen players 
+          // Object to track seen players
           Dictionary<string, bool> seenPlayers = new();
           foreach (var o in Objects)
           {
-            // Reject non player objects 
+            // Reject non player objects
             if (o is not IPlayerCharacter pc) continue;
             var player = Player.fromCharacter(pc);
 
-            // Skip player characters that do not have a name. 
-            // Portrait and Adventure plates show up with this. 
+            // Skip player characters that do not have a name.
+            // Portrait and Adventure plates show up with this.
             if (pc.Name.TextValue.Length == 0) continue;
             // Im not sure what this means, but it seems that 4 is for players
             if (o.SubKind != 4) continue;
             playerCount++;
 
-            // Add player to seen map 
+            // Add player to seen map
             if (seenPlayers.ContainsKey(player.Name))
               seenPlayers[player.Name] = true;
             else
               seenPlayers.Add(player.Name, true);
 
-            // Is the new player the current user 
-            
+            // Is the new player the current user
+
             var isSelf = PlayerState.CharacterName == player.Name;
 
-            // Store Player name 
+            // Store Player name
             if (PlayerState.CharacterName != null && PlayerState.CharacterName.Length > 0) pluginState.playerName = PlayerState.CharacterName ?? "";
 
-            // New Player has entered the house 
+            // New Player has entered the house
             if (!getCurrentGuestList().guests.ContainsKey(player.Name))
             {
               guestListUpdated = true;
@@ -344,7 +358,7 @@ namespace VenueManager
               if (!isSelf) playerArrived = true;
               showGuestEnterChatAlert(getCurrentGuestList().guests[player.Name], isSelf);
             }
-            // Mark the player as re-entering the venue 
+            // Mark the player as re-entering the venue
             else if (!getCurrentGuestList().guests[player.Name].inHouse)
             {
               guestListUpdated = true;
@@ -358,44 +372,44 @@ namespace VenueManager
             else if (justEnteredHouse)
             {
               getCurrentGuestList().guests[player.Name].timeCursor = DateTime.Now;
-              // setting is enabled to notify them on existing users. 
-              if (this.Configuration.showChatAlertAlreadyHere) 
+              // setting is enabled to notify them on existing users.
+              if (this.Configuration.showChatAlertAlreadyHere)
                 showGuestEnterChatAlert(getCurrentGuestList().guests[player.Name], isSelf);
             }
-            
-            // Re-mark as friend incase status changed 
+
+            // Re-mark as friend incase status changed
             getCurrentGuestList().guests[player.Name].isFriend = pc.StatusFlags.HasFlag(StatusFlags.Friend);
 
-            // Mark last seen 
+            // Mark last seen
             getCurrentGuestList().guests[player.Name].lastSeen = DateTime.Now;
 
-            // Mark last time current player enter house 
+            // Mark last time current player enter house
             if (justEnteredHouse && isSelf)
             {
               getCurrentGuestList().guests[player.Name].latestEntry = DateTime.Now;
             }
           }
 
-          // Check for guests that have left the house 
+          // Check for guests that have left the house
           foreach (var guest in getCurrentGuestList().guests)
           {
-            // Guest is marked as in the house 
-            if (guest.Value.inHouse) 
+            // Guest is marked as in the house
+            if (guest.Value.inHouse)
             {
-              // Guest was not seen this loop 
+              // Guest was not seen this loop
               if (!seenPlayers.ContainsKey(guest.Value.Name))
               {
                 guest.Value.onLeaveVenue();
                 guestListUpdated = true;
                 showGuestLeaveChatAlert(guest.Value);
               }
-              // Guest was seen this loop 
-              else 
+              // Guest was seen this loop
+              else
               {
                 guest.Value.onAccumulateTime();
               }
             }
-            
+
           }
 
           // Track population stats
@@ -404,13 +418,13 @@ namespace VenueManager
             popStopwatch.Restart();
           }
 
-          // Only play doorbell sound once if there were one or more new people 
+          // Only play doorbell sound once if there were one or more new people
           if (Configuration.soundAlerts && playerArrived && !pluginState.snoozed)
           {
             doorbell.play();
           }
 
-          // Save number of players seen this update 
+          // Save number of players seen this update
           pluginState.playersInHouse = playerCount;
 
           // Save config if we saw new players
@@ -419,7 +433,7 @@ namespace VenueManager
           justEnteredHouse = false;
           stopwatch.Restart();
 
-          // Send data to server 
+          // Send data to server
           if (Configuration.webserverConfig.sendDataOnInterval &&
             webserviceStopwatch.ElapsedMilliseconds > Configuration.webserverConfig.IntervalMiliseconds &&
             RestUtils.failedRequests <= RestUtils.maxFailedRequests)
@@ -466,12 +480,12 @@ namespace VenueManager
         return;
       }
 
-      // Don't show alerts if snoozed 
+      // Don't show alerts if snoozed
       if (pluginState.snoozed) return;
-      // Don't show if chat alerts disabled 
+      // Don't show if chat alerts disabled
       if (!Configuration.showChatAlerts) return;
 
-      // Alert type is already here 
+      // Alert type is already here
       bool isAlreadyHere = justEnteredHouse && this.Configuration.showChatAlertAlreadyHere;
 
       // Return if not showing already here alerts
@@ -485,17 +499,17 @@ namespace VenueManager
       // Show text alert for guests
       if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
 
-      // Player Color 
+      // Player Color
       messageBuilder.AddUiForeground(Colors.getChatColor(player, true));
 
-      // Add player message 
+      // Add player message
       messageBuilder.Add(new PlayerPayload(player.Name, player.homeWorld));
       messageBuilder.AddUiForegroundOff();
 
-      // Message Color 
+      // Message Color
       messageBuilder.AddUiForeground(Colors.getChatColor(player, false));
 
-      // Current player has re-entered the house 
+      // Current player has re-entered the house
       if (justEnteredHouse)
       {
         if (pluginState.isTrackingOutside)
@@ -514,7 +528,7 @@ namespace VenueManager
           messageBuilder.AddText(" (" + player.entryCount + ")");
       }
 
-      // Venue Name 
+      // Venue Name
       if (knownVenue)
       {
         var venue = venueList.venues[pluginState.currentHouse.houseId];
@@ -537,7 +551,7 @@ namespace VenueManager
     {
       if (!Configuration.showChatAlerts) return;
       if (!Configuration.showChatAlertLeave) return;
-      // Don't show alerts if snoozed 
+      // Don't show alerts if snoozed
       if (pluginState.snoozed) return;
 
       var isSelf = PlayerState.CharacterName == player.Name;
@@ -548,14 +562,14 @@ namespace VenueManager
       var messageBuilder = new SeStringBuilder();
       var knownVenue = venueList.venues.ContainsKey(pluginState.currentHouse.houseId);
 
-      // Add plugin name 
+      // Add plugin name
       if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
 
-      // Add Player name 
+      // Add Player name
       messageBuilder.Add(new PlayerPayload(player.Name, player.homeWorld));
       messageBuilder.AddText(" has left");
 
-      // Add Venue info 
+      // Add Venue info
       if (knownVenue)
       {
         var venue = venueList.venues[pluginState.currentHouse.houseId];

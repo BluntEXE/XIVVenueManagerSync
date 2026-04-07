@@ -2,16 +2,16 @@
 <Project Sdk="Dalamud.NET.Sdk/14.0.1">
   <PropertyGroup>
     <TargetFramework>net10.0-windows7.0</TargetFramework>
-    <Authors>Jrogo</Authors>
+    <Authors>Ehno</Authors>
     <Company></Company>
-    <Version>3.1.1</Version>
-    <Description>Guest list and doorbell for your venue</Description>
+    <Version>1.0.0</Version>
+    <Description>XIV Venue Manager Intergration</Description>
     <Copyright></Copyright>
-    <PackageProjectUrl>https://github.com/Jrogo7/VenueManager</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/BluntEXE/VelvetRift</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
-    <Title>VenueManager</Title>
-    <RepositoryUrl>https://github.com/Jrogo7/VenueManager</RepositoryUrl>
+    <Title>XIVVenueManagerSync</Title>
+    <RepositoryUrl>https://github.com/BluntEXE/VelvetRift</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <Configurations>Debug;Release;Beta</Configurations>
   </PropertyGroup>

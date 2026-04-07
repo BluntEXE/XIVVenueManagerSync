@@ -1,16 +1,16 @@
 {
-  "Author": "Jrogo",
-  "Name": "Venue Manager",
-  "Punchline": "Bookmark the venues you visit. View and manage guests for venues.",
-  "Description": "Save and share venues you visit or own. Get updates and logs for visitors coming and going. Guest list management tools for venue owners to view and easily export it for use with other applications. Icon by Silv :)",
+  "Author": "Ehno",
+  "Name": "XIVVenueManagerSync",
+  "Punchline": "Sync your datas with XIV Venue Manager",
+  "Description": "Automatically sync patron enter/leave events to your XIVVenueManager. Select which venue to log to and see services based on your role permissions.",
   "ApplicableVersion": "any",
-  "InternalName": "VenueManager",
-  "AssemblyVersion": "3.1.1",
-  "RepoUrl": "https://github.com/Jrogo7/VenueManager",
+  "InternalName": "XIVVenueManagerSync",
+  "AssemblyVersion": "1.0.0",
+  "RepoUrl": "https://github.com/BluntEXE/VelvetRift",
   "Tags": [
     "venue",
-    "club",
-    "guests"
+    "sync",
+    "xivapp"
   ],
   "IconUrl": "https://raw.githubusercontent.com/Jrogo7/VenueManager/master/images/icon.png"
 }
