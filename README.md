@@ -1,42 +1,26 @@
-# Venue Manager
+# XIVVenueManagerSync
 
-Simple Dalmund Plugin designed to help manage FFXIV Venues.  
+   A Dalamud plugin for FFXIV that syncs patron visits with XIVVenueManager.
 
-The plugin provides:   
+   ## Features
 
-- Chat and Sound alerts for:  
-   - A new player enters a house
-   - A player leaves a house 
-   - A player re-enters a house, including the amount of entries from that player 
-   - Players are already in a house you enter 
-- Guests tab that shows current status of guests in the venue
-- Download json or csv reports for the guest list 
-- View guest lists for saved venues you have visited
-- A user created list of saved Venues 
-- Ability to copy the address for the venue you are in and ones that are saved 
-- Settings to customize most if not all of these features
+   - Automatically sync patron enter/leave events to your XIVVenueManager
+   - Role-based service filtering (services you can log based on your role)
+   - Configure API key and server URL in settings
+   - Select which venue to log patron visits to
 
-Check out the [User Guide](https://github.com/Jrogo7/VenueManager/wiki/User-Guide) for more information. 
+   ## Installation
 
-## Installation 
+   Add to your custom plugin repositories, then search for "XIVVenueManagerSync" in Dalamud.
 
-Add the following line to Dalamud Settings -> Experimental -> Custom Plugin Repositories 
+   ## Configuration
 
-```
-https://raw.githubusercontent.com/Jrogo7/VenueManager/master/repo.json
-```
+   1. Open plugin settings
+   2. Enter your XIVVenueManager API key
+   3. Enter the server URL (e.g., http://192.168.1.122:3000)
+   4. Enable sync
+   5. Select which venue to log to
 
-Then search for "Venue Manager" on the "All Plugins" tab. 
+   ## Commands
 
-## Commands 
-
-`/venue` -> Open Main interface  
-`/venue snooze` -> Pause alarms until you exit the current house you are in. Sending the command again will unpause  
-
-### Aliases
-
-`/club` -> Alias for `/venue`  
-`/vm` -> Alias for `/venue`  
-`/club snooze` -> Alias for `/venue snooze`  
-`/vm snooze` -> Alias for `/venue snooze`  
-
+   `/venue` -> Open main interface
