@@ -13,13 +13,19 @@ namespace VenueManager
   {
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
-    
+
     [JsonPropertyName("name")]
     public string Name { get; set; } = "";
-    
+
+    // Venue slug, used to build deep-link URLs into the website
+    // (e.g. /dashboard/{slug}). Added in the UX arc Foundation so
+    // later arcs can open per-venue pages from plugin buttons.
+    [JsonPropertyName("slug")]
+    public string Slug { get; set; } = "";
+
     [JsonPropertyName("addresses")]
     public List<string> Addresses { get; set; } = new();
-    
+
     [JsonPropertyName("role")]
     public string Role { get; set; } = "";
   }

@@ -46,10 +46,13 @@ public class MainWindow : Window, IDisposable
     try
     {
       ImGui.BeginTabBar("Tabs");
-      // Render Guests tab if selected 
+      // Render Patrons tab if selected. (Historically named "Guests" —
+      // the UI label is "Patrons" to match site vocabulary, but the
+      // internal type/field names are still Guest* until the internal
+      // naming pass lands with its data-migration shim.)
       if (this.configuration.showGuestsTab)
       {
-        if (ImGui.BeginTabItem("Guests"))
+        if (ImGui.BeginTabItem("Patrons"))
         {
           this.guestsTab.draw();
 
