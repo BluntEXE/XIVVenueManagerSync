@@ -13,13 +13,13 @@ namespace VenueManager
   {
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
-
+    
     [JsonPropertyName("name")]
     public string Name { get; set; } = "";
-
+    
     [JsonPropertyName("addresses")]
     public List<string> Addresses { get; set; } = new();
-
+    
     [JsonPropertyName("role")]
     public string Role { get; set; } = "";
   }
@@ -28,16 +28,16 @@ namespace VenueManager
   {
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
-
+    
     [JsonPropertyName("name")]
     public string Name { get; set; } = "";
-
+    
     [JsonPropertyName("description")]
     public string? Description { get; set; }
-
+    
     [JsonPropertyName("price")]
     public string Price { get; set; } = "";
-
+    
     [JsonPropertyName("category")]
     public string? Category { get; set; }
   }
@@ -46,9 +46,24 @@ namespace VenueManager
   {
     [JsonPropertyName("services")]
     public List<Service> Services { get; set; } = new();
-
+    
     [JsonPropertyName("userRole")]
     public string? UserRole { get; set; }
+  }
+
+  public class Role
+  {
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+    
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+  }
+
+  public class RolesResponse
+  {
+    [JsonPropertyName("roles")]
+    public List<Role> Roles { get; set; } = new();
   }
 
   public class XIVAppVenuesResponse
@@ -61,16 +76,16 @@ namespace VenueManager
   {
     [JsonPropertyName("venueId")]
     public string VenueId { get; set; } = "";
-
+    
     [JsonPropertyName("characterName")]
     public string CharacterName { get; set; } = "";
-
+    
     [JsonPropertyName("world")]
     public string World { get; set; } = "";
-
+    
     [JsonPropertyName("action")]
     public string Action { get; set; } = ""; // "enter" or "leave"
-
+    
     [JsonPropertyName("timestamp")]
     public string Timestamp { get; set; } = "";
   }
@@ -79,13 +94,13 @@ namespace VenueManager
   {
     [JsonPropertyName("venueId")]
     public string VenueId { get; set; } = "";
-
+    
     [JsonPropertyName("guestName")]
     public string GuestName { get; set; } = "";
-
+    
     [JsonPropertyName("amount")]
     public int Amount { get; set; }
-
+    
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
   }
@@ -95,17 +110,25 @@ namespace VenueManager
     [JsonPropertyName("venueId")]
     public string VenueId { get; set; } = "";
 
-    [JsonPropertyName("customerName")]
-    public string CustomerName { get; set; } = "";
+    [JsonPropertyName("serviceId")]
+    public string? ServiceId { get; set; }
 
     [JsonPropertyName("amount")]
-    public int Amount { get; set; }
+    public decimal Amount { get; set; }
 
-    [JsonPropertyName("type")]
-    public string Type { get; set; } = ""; // "sale", "tip", "refund"
+    [JsonPropertyName("customerName")]
+    public string? CustomerName { get; set; }
 
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
+  }
+
+  // Result wrapper for LogTransactionAsync — lets the UI tab show the
+  // server error inline on failure instead of a generic "failed".
+  public class LogTransactionResult
+  {
+    public bool Success { get; set; }
+    public string? Error { get; set; }
   }
 
   public class XIVAppApiException : Exception
@@ -130,7 +153,7 @@ namespace VenueManager
     {
       _apiKey = apiKey;
       _baseUrl = serverUrl.TrimEnd('/');
-
+      
       _httpClient.DefaultRequestHeaders.Clear();
       _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
     }
@@ -147,7 +170,7 @@ namespace VenueManager
       try
       {
         var response = await _httpClient.GetAsync($"{_baseUrl}/api/plugin/venues");
-
+        
         if (!response.IsSuccessStatusCode)
         {
           var error = await response.Content.ReadAsStringAsync();
@@ -181,7 +204,7 @@ namespace VenueManager
       try
       {
         var response = await _httpClient.GetAsync($"{_baseUrl}/api/plugin/services?venueId={venueId}");
-
+        
         if (!response.IsSuccessStatusCode)
         {
           return null;
@@ -193,6 +216,33 @@ namespace VenueManager
       {
         Plugin.Log.Warning($"Error fetching services: {ex.Message}");
         return null;
+      }
+    }
+
+    public async Task<List<Role>> GetRolesAsync(string venueId)
+    {
+      if (!IsConfigured)
+      {
+        return new List<Role>();
+      }
+
+      try
+      {
+        var response = await _httpClient.GetAsync($"{_baseUrl}/api/plugin/roles?venueId={venueId}");
+        
+        if (!response.IsSuccessStatusCode)
+        {
+          Plugin.Log.Warning($"Failed to get roles: {response.StatusCode}");
+          return new List<Role>();
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<RolesResponse>();
+        return result?.Roles ?? new List<Role>();
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error fetching roles: {ex.Message}");
+        return new List<Role>();
       }
     }
 
@@ -215,7 +265,7 @@ namespace VenueManager
         };
 
         var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/api/plugin/patron-visits", request);
-
+        
         if (!response.IsSuccessStatusCode)
         {
           var error = await response.Content.ReadAsStringAsync();
@@ -250,7 +300,7 @@ namespace VenueManager
         };
 
         var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/api/plugin/services", request);
-
+        
         if (!response.IsSuccessStatusCode)
         {
           var error = await response.Content.ReadAsStringAsync();
@@ -267,11 +317,25 @@ namespace VenueManager
       }
     }
 
-    public async Task<bool> LogTransactionAsync(string venueId, string customerName, int amount, string type, string? notes = null)
+    /// <summary>
+    /// Log a sale at a venue. Posts to /api/plugin/transactions. The
+    /// serviceId and notes are optional; customerName is optional but
+    /// strongly encouraged so the webhook embed has a real name to show.
+    /// </summary>
+    public async Task<LogTransactionResult> LogTransactionAsync(
+      string venueId,
+      string? serviceId,
+      decimal amount,
+      string? customerName = null,
+      string? notes = null)
     {
       if (!IsConfigured)
       {
-        throw new XIVAppApiException("API not configured. Please set your API key in settings.");
+        return new LogTransactionResult
+        {
+          Success = false,
+          Error = "API not configured. Please set your API key in settings.",
+        };
       }
 
       try
@@ -279,10 +343,10 @@ namespace VenueManager
         var request = new XIVAppTransactionRequest
         {
           VenueId = venueId,
-          CustomerName = customerName,
+          ServiceId = serviceId,
           Amount = amount,
-          Type = type,
-          Notes = notes
+          CustomerName = customerName,
+          Notes = notes,
         };
 
         var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/api/plugin/transactions", request);
@@ -291,15 +355,15 @@ namespace VenueManager
         {
           var error = await response.Content.ReadAsStringAsync();
           Plugin.Log.Warning($"Failed to log transaction: {response.StatusCode} - {error}");
-          return false;
+          return new LogTransactionResult { Success = false, Error = error };
         }
 
-        return true;
+        return new LogTransactionResult { Success = true };
       }
       catch (Exception ex)
       {
         Plugin.Log.Warning($"Error logging transaction: {ex.Message}");
-        return false;
+        return new LogTransactionResult { Success = false, Error = ex.Message };
       }
     }
 

@@ -16,9 +16,10 @@ public class MainWindow : Window, IDisposable
   private GuestLogTab guestLogTab;
   private WebserviceTab webserviceTab;
   private StatsTab statsTab;
+  private SalesTab salesTab;
 
   public MainWindow(Plugin plugin) : base(
-      "Venue Manager", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
+      "XIV Venue Manager Sync", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
   {
     this.SizeConstraints = new WindowSizeConstraints
     {
@@ -33,6 +34,7 @@ public class MainWindow : Window, IDisposable
     this.guestLogTab = new GuestLogTab(plugin);
     this.webserviceTab = new WebserviceTab(plugin);
     this.statsTab = new StatsTab(plugin);
+    this.salesTab = new SalesTab(plugin);
   }
 
   public void Dispose()
@@ -76,7 +78,16 @@ public class MainWindow : Window, IDisposable
           }
         }
       }
-      // Render Venues Tab 
+      // Sales tab — plugin-first surface for logging a sale at the
+      // active XIV-App venue. Always shown; the tab itself gates on
+      // API key + selected venue and shows a helpful message when not
+      // configured.
+      if (ImGui.BeginTabItem("Sales"))
+      {
+        this.salesTab.draw();
+        ImGui.EndTabItem();
+      }
+      // Render Venues Tab
       if (this.configuration.showVenueTab)
       {
         if (ImGui.BeginTabItem("Venues"))

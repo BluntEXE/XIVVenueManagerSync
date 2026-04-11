@@ -1,14 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
     <Target Name="PackagePlugin" AfterTargets="Build">
-        <DalamudPackager 
-          ProjectDir="$(ProjectDir)" 
-          OutputPath="$(OutputPath)" 
-          AssemblyName="$(AssemblyName)" 
+        <DalamudPackager
+          ProjectDir="$(ProjectDir)"
+          OutputPath="$(OutputPath)"
+          AssemblyName="$(AssemblyName)"
           MakeZip="true"
           ManifestType="json"
           VersionComponents="3"
           />
+    </Target>
+
+    <!-- Rename DalamudPackager's default "latest.zip" to the filename the
+         GitHub release expects. repo.json's DownloadLinkInstall points at
+         XIVVenueManagerSync.zip, so producing it directly removes the
+         manual rename step from the deploy loop. Runs only on Release so
+         Beta builds keep their own naming scheme. -->
+    <Target Name="RenamePluginZip" AfterTargets="PackagePlugin" Condition="'$(Configuration)' == 'Release'">
+        <Move SourceFiles="$(OutputPath)$(AssemblyName)\latest.zip" DestinationFiles="$(OutputPath)$(AssemblyName)\XIVVenueManagerSync.zip" />
     </Target>
 
     <Target Name="PackageBeta" AfterTargets="Build" Condition="'$(Configuration)' == 'Beta'">

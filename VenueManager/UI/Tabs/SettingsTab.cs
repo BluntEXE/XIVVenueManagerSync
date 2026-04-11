@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
+using System.Threading.Tasks;
 using Dalamud.Interface;
 using Dalamud.Interface.Components;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -80,6 +82,9 @@ public class SettingsTab
     {
       ImGui.TextColored(new Vector4(0.9f, 0, 1f, 1f), "So Empty :(");
     }
+
+    // XIV-App Sync Settings
+    DrawXivAppSettings();
 
     // =============================================================================
     ImGui.Separator();
@@ -259,5 +264,165 @@ PlaceName: {mapData.PlaceName.Value.Name.ExtractText()}
 
     ImGui.Unindent();
     ImGui.EndChild();
+  }
+
+  // XIV-App API Section
+  public unsafe void DrawXivAppSettings()
+  {
+    ImGui.Separator();
+    ImGui.Spacing();
+    ImGui.Text("XIV-App Sync");
+    
+    var syncEnabled = this.configuration.syncToXivApp;
+    if (ImGui.Checkbox("Enable XIV-App Sync", ref syncEnabled))
+    {
+      this.configuration.syncToXivApp = syncEnabled;
+      this.configuration.Save();
+    }
+    if (ImGui.IsItemHovered())
+    {
+      ImGui.SetTooltip("Sync patron visits to XIV-App website");
+    }
+    
+    if (!this.configuration.syncToXivApp) ImGui.BeginDisabled();
+    
+    ImGui.Indent(10);
+    
+    // API Key input
+    var apiKey = this.configuration.xivAppApiKey ?? "";
+    if (ImGui.InputText("API Key", ref apiKey, 128))
+    {
+      this.configuration.xivAppApiKey = apiKey;
+      this.configuration.Save();
+    }
+
+    // Server URL input
+    var serverUrl = this.configuration.xivAppServerUrl ?? "";
+    if (ImGui.InputText("Server URL", ref serverUrl, 256))
+    {
+      this.configuration.xivAppServerUrl = serverUrl;
+      this.configuration.Save();
+    }
+    
+    // Fetch Venues button
+    if (ImGui.Button("Fetch Venues"))
+    {
+      _ = FetchXivAppVenuesAsync();
+    }
+    
+    // Venue dropdown
+    if (plugin.xivAppVenues.Count > 0)
+    {
+      var selectedVenueId = this.configuration.selectedVenueId ?? "";
+      var selectedVenue = plugin.xivAppVenues.FirstOrDefault(v => v.Id == selectedVenueId);
+      var displayName = selectedVenue?.Name ?? "Select Venue";
+      
+      if (ImGui.BeginCombo("Venue", displayName))
+      {
+        foreach (var venue in plugin.xivAppVenues)
+        {
+          bool isSelected = venue.Id == selectedVenueId;
+          if (ImGui.Selectable(venue.Name, isSelected))
+          {
+            this.configuration.selectedVenueId = venue.Id;
+            this.configuration.Save();
+            // Track the active venue separately from Configuration so other
+            // code paths (service logging, role dropdowns) have a single
+            // source of truth that updates the instant the user switches.
+            plugin.currentXivAppVenueId = venue.Id;
+            _ = FetchXivAppRolesAsync(venue.Id);
+            _ = FetchXivAppServicesAsync(venue.Id);
+          }
+          if (isSelected)
+            ImGui.SetItemDefaultFocus();
+        }
+        ImGui.EndCombo();
+      }
+
+      // Level-2 visibility: show what we actually fetched for the active
+      // venue. Grayed text so it feels like a status line, not a control.
+      if (plugin.xivAppRoles.Count > 0)
+      {
+        var roleNames = string.Join(", ", plugin.xivAppRoles.ConvertAll(r => r.Name));
+        ImGui.TextDisabled($"Roles: {roleNames}");
+      }
+      else
+      {
+        ImGui.TextDisabled("Roles: (none fetched yet)");
+      }
+      ImGui.TextDisabled($"Services: {plugin.availableServices.Count}");
+    }
+    
+    ImGui.Unindent(10);
+    
+    if (!this.configuration.syncToXivApp) ImGui.EndDisabled();
+  }
+  
+  private async Task FetchXivAppVenuesAsync()
+  {
+    try {
+      if (plugin.xivAppClient == null || string.IsNullOrEmpty(this.configuration.xivAppApiKey)) {
+        Plugin.Log.Warning("XIV-App not configured");
+        return;
+      }
+      
+      plugin.xivAppVenues = await plugin.xivAppClient.GetVenuesAsync();
+      Plugin.Log.Information("Fetched {Count} venues from XIV-App", plugin.xivAppVenues.Count);
+      
+      // Auto-select first venue if none selected
+      if (string.IsNullOrEmpty(this.configuration.selectedVenueId) && plugin.xivAppVenues.Count > 0) {
+        this.configuration.selectedVenueId = plugin.xivAppVenues[0].Id;
+        this.configuration.Save();
+        plugin.currentXivAppVenueId = this.configuration.selectedVenueId;
+        await FetchXivAppRolesAsync(this.configuration.selectedVenueId);
+        await FetchXivAppServicesAsync(this.configuration.selectedVenueId);
+      }
+      // If a venue was already selected from a previous session, make sure
+      // currentXivAppVenueId + role/service state are populated on first
+      // fetch — otherwise we render "(none fetched yet)" forever.
+      else if (!string.IsNullOrEmpty(this.configuration.selectedVenueId))
+      {
+        plugin.currentXivAppVenueId = this.configuration.selectedVenueId;
+        await FetchXivAppRolesAsync(this.configuration.selectedVenueId);
+        await FetchXivAppServicesAsync(this.configuration.selectedVenueId);
+      }
+    } catch (Exception ex) {
+      Plugin.Log.Error("Failed to fetch venues: {0}", ex.Message);
+    }
+  }
+  
+  private async Task FetchXivAppRolesAsync(string venueId)
+  {
+    try {
+      if (plugin.xivAppClient == null) return;
+      
+      var roles = await plugin.xivAppClient.GetRolesAsync(venueId);
+      // Store the result so the Settings indicator (and any future role
+      // dropdown) can read it. Previously we logged-and-discarded — that
+      // was the "roles not updating" bug.
+      plugin.xivAppRoles = roles;
+      Plugin.Log.Information("Fetched {Count} roles for venue {VenueId}", roles.Count, venueId);
+    } catch (Exception ex) {
+      Plugin.Log.Error("Failed to fetch roles: {0}", ex.Message);
+    }
+  }
+
+  private async Task FetchXivAppServicesAsync(string venueId)
+  {
+    try {
+      if (plugin.xivAppClient == null) return;
+
+      var response = await plugin.xivAppClient.GetServicesAsync(venueId);
+      if (response == null)
+      {
+        plugin.availableServices = new List<Service>();
+        Plugin.Log.Warning("No services response for venue {VenueId}", venueId);
+        return;
+      }
+      plugin.availableServices = response.Services;
+      Plugin.Log.Information("Fetched {Count} services for venue {VenueId}", response.Services.Count, venueId);
+    } catch (Exception ex) {
+      Plugin.Log.Error("Failed to fetch services: {0}", ex.Message);
+    }
   }
 }
