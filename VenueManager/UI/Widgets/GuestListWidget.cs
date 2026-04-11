@@ -44,12 +44,12 @@ public class GuestListWidget
       disabled = true;
     }
     // Clear guest list button 
-    if (ImGui.Button("Clear Guest List")) {
+    if (ImGui.Button("Clear Patron List")) {
       plugin.guestLists[houseId].guests = new();
       plugin.guestLists[houseId].save();
     }
     if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) && disabled) {
-      ImGui.SetTooltip("Hold control to clear guest list");
+      ImGui.SetTooltip("Hold control to clear patron list");
     }
     if (disabled) ImGui.EndDisabled();
     // Simple or advanced table format

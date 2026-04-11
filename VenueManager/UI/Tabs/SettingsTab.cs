@@ -40,7 +40,7 @@ public class SettingsTab
 
     ImGui.Text("Tab Visibility");
     var showGuestsTab = this.configuration.showGuestsTab;
-    if (ImGui.Checkbox("Guest Tabs", ref showGuestsTab))
+    if (ImGui.Checkbox("Patrons Tab", ref showGuestsTab))
     {
       this.configuration.showGuestsTab = showGuestsTab;
       this.configuration.Save();
@@ -49,7 +49,7 @@ public class SettingsTab
 
     // Guest tab sub settings
     if (!this.configuration.showGuestsTab) ImGui.BeginDisabled();
-    ImGui.TextWrapped("Hiding the Guests Tab will also disable all notifications around guests entering or leaving.");
+    ImGui.TextWrapped("Hiding the Patrons Tab will also disable all notifications around patrons entering or leaving.");
     if (!this.configuration.showGuestsTab) ImGui.EndDisabled();
 
     ImGui.Unindent();
@@ -71,7 +71,7 @@ public class SettingsTab
     // =============================================================================
     ImGui.Separator();
     ImGui.Spacing();
-    ImGui.Text("Guest List");
+    ImGui.Text("Patron List");
     var sortCurrentVisitorsTop = this.configuration.sortCurrentVisitorsTop;
     if (ImGui.Checkbox("Pin current visitors to top", ref sortCurrentVisitorsTop))
     {
@@ -79,7 +79,7 @@ public class SettingsTab
       this.configuration.Save();
     }
     if (ImGui.IsItemHovered()) {
-      ImGui.SetTooltip("Pin current visitors to the top of the guest list");
+      ImGui.SetTooltip("Pin current visitors to the top of the patron list");
     }
 
     var sortFriendsToTop = this.configuration.sortFriendsToTop;
@@ -89,7 +89,7 @@ public class SettingsTab
       this.configuration.Save();
     }
     if (ImGui.IsItemHovered()) {
-      ImGui.SetTooltip("Pin friends to the top of the guest list");
+      ImGui.SetTooltip("Pin friends to the top of the patron list");
     }
 
     // =============================================================================
@@ -98,7 +98,7 @@ public class SettingsTab
 
     if (!this.configuration.showGuestsTab) ImGui.BeginDisabled();
 
-    ImGui.Text("Guest Chat Alerts");
+    ImGui.Text("Patron Chat Alerts");
     var showChatAlerts = this.configuration.showChatAlerts;
     if (ImGui.Checkbox("Enabled##showChatAlerts", ref showChatAlerts))
     {
@@ -117,7 +117,7 @@ public class SettingsTab
     }
     if (ImGui.IsItemHovered())
     {
-      ImGui.SetTooltip("Display chat message when a guest enters a venue");
+      ImGui.SetTooltip("Display chat message when a patron enters a venue");
     }
 
     // Reentry Alerts 
@@ -129,7 +129,7 @@ public class SettingsTab
     }
     if (ImGui.IsItemHovered())
     {
-      ImGui.SetTooltip("Display chat message when a guest re-enters a venue after leaving");
+      ImGui.SetTooltip("Display chat message when a patron re-enters a venue after leaving");
     }
 
     // Current Visitor
@@ -141,7 +141,7 @@ public class SettingsTab
     }
     if (ImGui.IsItemHovered())
     {
-      ImGui.SetTooltip("Display chat message for all current guests when re-entering a house");
+      ImGui.SetTooltip("Display chat message for all current patrons when re-entering a house");
     }
 
     // Leave Alerts 
@@ -153,7 +153,7 @@ public class SettingsTab
     }
     if (ImGui.IsItemHovered())
     {
-      ImGui.SetTooltip("Display chat message when a guest leaves");
+      ImGui.SetTooltip("Display chat message when a patron leaves");
     }
 
     // Include plugin name in alerts 
@@ -170,7 +170,7 @@ public class SettingsTab
     ImGui.Separator();
     ImGui.Spacing();
 
-    ImGui.Text("Guest Sound Alerts");
+    ImGui.Text("Patron Sound Alerts");
     // Enable / Disable sound allerts 
     var soundAlerts = this.configuration.soundAlerts;
     if (ImGui.Checkbox("Enabled##soundAlerts", ref soundAlerts))

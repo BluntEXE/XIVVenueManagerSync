@@ -25,7 +25,7 @@ public class GuestLogTab
       displayName = plugin.venueList.venues[selectVenue].name;
     }
 
-    ImGui.Text("Select venue to display guest log for:");
+    ImGui.Text("Select venue to display patron log for:");
     // Combo box of all venues
     if (ImGui.BeginCombo("##VenueForLogs", displayName))
     {

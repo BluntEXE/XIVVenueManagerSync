@@ -42,7 +42,7 @@ public class GuestsTab
       }
 
       // List the number of players in the house
-      ImGui.TextWrapped($"There are currently {plugin.pluginState.playersInHouse} guests inside (out of {plugin.getCurrentGuestList().guests.Count} total visitors)");
+      ImGui.TextWrapped($"There are currently {plugin.pluginState.playersInHouse} patrons inside (out of {plugin.getCurrentGuestList().guests.Count} total visitors)");
     }
     else
     {
@@ -58,7 +58,7 @@ public class GuestsTab
       if (plugin.venueList.venues.ContainsKey(plugin.pluginState.currentHouse.houseId))
       {
         var venue = plugin.venueList.venues[plugin.pluginState.currentHouse.houseId];
-        ImGui.Text("Guest list for " + venue.name);
+        ImGui.Text("Patron list for " + venue.name);
       }
       else
       {
@@ -74,7 +74,7 @@ public class GuestsTab
     }
     else
     {
-      ImGui.Text("Guest list will be shown when you enter a house");
+      ImGui.Text("Patron list will be shown when you enter a house");
     }
   }
 }
