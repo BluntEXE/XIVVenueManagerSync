@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Newtonsoft.Json;
 
 namespace VenueManager
 {
@@ -12,11 +10,10 @@ namespace VenueManager
 
     // List of guests in the venue
     public Dictionary<string, Player> guests { get; set; } = new();
-    // FF House Id. House id 0 is unsaved house and house id 1 is outside event. 
+    // FF House Id. House id 0 is unsaved house.
     public long houseId { get; set; } = 0;
     public Venue venue { get; set; } = new();
     public DateTime startTime { get; set; } = DateTime.Now;
-    public bool outsideEvent { get; set; } = false;
 
     public GuestList()
     {
@@ -28,23 +25,12 @@ namespace VenueManager
       this.venue = new Venue(venue);
     }
 
-    public GuestList(GuestList list) 
+    public GuestList(GuestList list)
     {
       this.guests = list.guests;
       this.houseId = list.houseId;
       this.venue = list.venue;
       this.startTime = list.startTime;
-      this.outsideEvent = list.outsideEvent;
-    }
-
-    public static GuestList getOutdoorList() 
-    {
-      Venue venue = new Venue();
-      venue.name = "Outdoor Event";
-      venue.houseId = 1;
-      GuestList outdoorEvent = new GuestList(1, venue);
-      outdoorEvent.outsideEvent = true;
-      return outdoorEvent;
     }
 
     private string getFileName()
@@ -65,7 +51,7 @@ namespace VenueManager
       // Load not supported for default guest list
       if (this.houseId == 0) return;
 
-      // Don't attempt to load if there is no file 
+      // Don't attempt to load if there is no file
       var fileInfo = FileStore.GetFileInfo(getFileName());
       if (!fileInfo.Exists) return;
 
@@ -76,47 +62,6 @@ namespace VenueManager
       // Don't replace venue if the incoming one is blank
       if (loadedData.venue.name.Length != 0)
         this.venue = loadedData.venue;
-    }
-
-    public void saveToFile(string path)
-    {
-      FileStore.SaveClassToFile(path, this.GetType(), this);
-    }
-
-    public void saveToFileCSV(string path, bool isCurrentHouse)
-    {
-      string csv = "Name,World,Is Inside,Latest Entry,First Seen,Last Seen,Seconds Inside,Entry Count\n";
-      foreach (var guest in guests) {
-        csv += guest.Value.getCSVString(isCurrentHouse) + "\n";
-      }
-      FileStore.SaveStringToFile(path, csv);
-    }
-
-    public void removeUsersNotInHouse() 
-    {
-      var matches = guests.Where(kvp => kvp.Value.inHouse);
-      guests = matches.ToDictionary();
-    }
-
-    public void sentToWebserver(Plugin plugin) {
-      // Cant send payload if we do not have a url 
-      if (plugin.Configuration.webserverConfig.endpoint.Length == 0) return;
-      // Don't send data for default house 
-      if (this.houseId == 0) return;
-
-      // Ensure no player created notes are sent to the server
-      this.venue.notes = "";
-
-      GuestList copy = new GuestList(this);
-
-      // Remove users that left if setting now in place 
-      if (!plugin.Configuration.webserverConfig.sendUsersThatLeft) copy.removeUsersNotInHouse();
-
-      // Convert class to string
-      string output = JsonConvert.SerializeObject(copy, copy.GetType(), new JsonSerializerSettings { Formatting = Formatting.Indented });
-
-      // Post data to the webserver
-      _ = RestUtils.PostAsync(plugin.Configuration.webserverConfig.endpoint, output, plugin);
     }
   }
 }

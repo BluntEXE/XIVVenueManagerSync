@@ -38,15 +38,6 @@ namespace VenueManager
           return player;
         }
 
-        public string getCSVString(bool isCurrentHouse) {
-          return Name + "," + WorldName + "," + inHouse + 
-            "," + latestEntry.ToString("MM/dd/yyyy hh:mm tt") + 
-            "," + firstSeen.ToString("MM/dd/yyyy hh:mm tt") + 
-            "," + lastSeen.ToString("MM/dd/yyyy hh:mm tt") + 
-            "," + (milisecondsInVenue / 1000) +
-            "," + entryCount;
-        }
-
         public void onLeaveVenue() {
           inHouse = false;
         }

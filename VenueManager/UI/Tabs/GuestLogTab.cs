@@ -15,31 +15,22 @@ public class GuestLogTab
   {
     this.plugin = plugin;
     this.guestListWidget = new GuestListWidget(plugin);
-    this.guestListWidget.showDownloadButtons = true;
   }
 
   public unsafe void draw()
   {
-    string displayName = "Outdoor Event";
+    string displayName = "Select a venue";
     if (plugin.venueList.venues.ContainsKey(selectVenue))
     {
       displayName = plugin.venueList.venues[selectVenue].name;
     }
 
     ImGui.Text("Select venue to display guest log for:");
-    // Combo box of all venues 
+    // Combo box of all venues
     if (ImGui.BeginCombo("##VenueForLogs", displayName))
     {
-      // Outside Venue 
-      bool is_selected = 1 == selectVenue;
-      if (ImGui.Selectable("Outdoor Event", is_selected))
-      {
-        selectVenue = 1;
-      }
-      if (is_selected)
-        ImGui.SetItemDefaultFocus();
-        
-      // All Saved Venues 
+      bool is_selected;
+      // All Saved Venues
       foreach (var venue in plugin.venueList.venues)
       {
         is_selected = venue.Key == selectVenue;

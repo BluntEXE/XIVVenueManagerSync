@@ -25,15 +25,10 @@ namespace VenueManager
 
     // Tab visibiliy options
     public bool showGuestsTab { get; set; } = true;
-    public bool showWebserviceLogging { get; set; } = false;
-    public bool showStatsTab { get; set; } = false;
     public bool showVenueTab { get; set; } = true;
 
     public bool sortFriendsToTop { get; set; } = true;
     public bool sortCurrentVisitorsTop { get; set; } = true;
-
-    // Advanced setting webserver config
-    public WebserverConfig webserverConfig { get; set; } = new();
 
     // XIV-App API Configuration
     public string xivAppApiKey { get; set; } = "";

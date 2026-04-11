@@ -14,7 +14,6 @@ using System.Collections.Generic;
 using System;
 using VenueManager.UI;
 using Dalamud.Game.ClientState.Objects.Enums;
-using Dalamud.Bindings.ImPlot;
 using Dalamud.Bindings.ImGui;
 using Map = Lumina.Excel.Sheets.Map;
 
@@ -22,12 +21,9 @@ namespace VenueManager
 {
   public sealed class Plugin : IDalamudPlugin
   {
-    public const int POP_TRACK_INTERVAL = 1000;
-
     public string Name => "XIV Venue Manager Sync";
     private const string CommandName = "/venue";
     private const string CommandNameAlias = "/vm";
-    private const string CommandNameAlias2 = "/club";
     [PluginService] public static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] public static IClientState ClientState { get; private set; } = null!;
     [PluginService] public static IFramework Framework { get; private set; } = null!;
@@ -45,16 +41,13 @@ namespace VenueManager
     public PluginState pluginState { get; init; }
     public VenueList venueList { get; init; }
     public Dictionary<long, GuestList> guestLists = new();
-    public int currentVisitorCount = 0;
 
-    // Windows 
+    // Windows
     public WindowSystem WindowSystem = new("VenueManager");
     private MainWindow MainWindow { get; init; }
     private NotesWindow NotesWindow { get; init; }
 
     private Stopwatch stopwatch = new();
-    private Stopwatch webserviceStopwatch = new();
-    private Stopwatch popStopwatch = new();
     private DoorbellSound doorbell;
 
     // XIV-App API Client. Public so UI tabs (SettingsTab, SalesTab, ...)
@@ -73,19 +66,14 @@ namespace VenueManager
     private bool running = false;
 
     public Plugin()
-    {            
-      ImPlot.SetImGuiContext(ImGui.GetCurrentContext());
-      ImPlot.SetCurrentContext(ImPlot.CreateContext());
-
+    {
       this.pluginState = new PluginState();
       this.venueList = new VenueList();
       this.venueList.load();
 
-      // Default guest list 
+      // Default guest list
       this.guestLists.Add(0, new GuestList());
       this.guestLists[0].load();
-      // Create default fake outside event 
-      this.guestLists.Add(1, GuestList.getOutdoorList());
 
       this.Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
       this.Configuration.Initialize(PluginInterface);
@@ -106,12 +94,10 @@ namespace VenueManager
 
       CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open venue manager interface to see guests list and manage venues" });
       CommandManager.AddHandler(CommandNameAlias, new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /venue" });
-      CommandManager.AddHandler(CommandNameAlias2, new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /venue" });
       var SnoozeHandler = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Pause alerts until leaving the house." };
       var SnoozeHandlerAlias = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /venue snooze" };
       CommandManager.AddHandler(CommandName + " snooze", SnoozeHandler);
       CommandManager.AddHandler(CommandNameAlias + " snooze", SnoozeHandlerAlias);
-      CommandManager.AddHandler(CommandNameAlias2 + " snooze", SnoozeHandlerAlias);
 
       PluginInterface.UiBuilder.Draw += DrawUI;
 
@@ -152,12 +138,8 @@ namespace VenueManager
 
       CommandManager.RemoveHandler(CommandName);
       CommandManager.RemoveHandler(CommandNameAlias);
-      CommandManager.RemoveHandler(CommandNameAlias2);
       CommandManager.RemoveHandler(CommandName + " snooze");
       CommandManager.RemoveHandler(CommandNameAlias + " snooze");
-      CommandManager.RemoveHandler(CommandNameAlias2 + " snooze");
-
-      ImPlot.DestroyContext();
     }
 
     private void OnSnooze()
@@ -213,13 +195,8 @@ namespace VenueManager
 
     private unsafe void OnTerritoryChanged(ushort territory)
     {
-      // Save current user territory 
+      // Save current user territory
       pluginState.territory = territory;
-
-      // Reset tracking outside 
-      pluginState.isTrackingOutside = false;
-      // Clear outdoor events list 
-      guestLists[1].guests = new();
 
       bool inHouse = false;
       try
@@ -250,24 +227,19 @@ namespace VenueManager
     public void startTimers()
     {
       stopwatch.Start();
-      webserviceStopwatch.Start();
-      popStopwatch.Start();
     }
 
     public void stopTimers()
     {
       stopwatch.Stop();
-      webserviceStopwatch.Stop();
-      popStopwatch.Stop();
     }
 
     private void leftHouse()
     {
       pluginState.userInHouse = false;
-      pluginState.currentHouse = new Venue(); // Erase venue when leaving 
+      pluginState.currentHouse = new Venue(); // Erase venue when leaving
       stopwatch.Stop();
-      webserviceStopwatch.Stop();
-      // Unsnooze if leaving a house when snoozed 
+      // Unsnooze if leaving a house when snoozed
       if (pluginState.snoozed) OnSnooze();
     }
 
@@ -280,10 +252,10 @@ namespace VenueManager
       running = true;
       try
       {
-        // Every second we are in a house or tracking outside event. Process players and see what has changed 
-        if ((pluginState.userInHouse || pluginState.isTrackingOutside) && stopwatch.ElapsedMilliseconds > 1000)
+        // Every second we are in a house. Process players and see what has changed
+        if (pluginState.userInHouse && stopwatch.ElapsedMilliseconds > 1000)
         {
-          // Fetch updated house information 
+          // Fetch updated house information
           if (pluginState.userInHouse)
           {
             try
@@ -417,13 +389,7 @@ namespace VenueManager
             
           }
 
-          // Track population stats
-          if (popStopwatch.ElapsedMilliseconds >= POP_TRACK_INTERVAL) {
-            currentVisitorCount = seenPlayers.Count;
-            popStopwatch.Restart();
-          }
-
-          // Only play doorbell sound once if there were one or more new people 
+          // Only play doorbell sound once if there were one or more new people
           if (Configuration.soundAlerts && playerArrived && !pluginState.snoozed)
           {
             doorbell.play();
@@ -437,15 +403,6 @@ namespace VenueManager
 
           justEnteredHouse = false;
           stopwatch.Restart();
-
-          // Send data to server 
-          if (Configuration.webserverConfig.sendDataOnInterval &&
-            webserviceStopwatch.ElapsedMilliseconds > Configuration.webserverConfig.IntervalMiliseconds &&
-            RestUtils.failedRequests <= RestUtils.maxFailedRequests)
-          {
-            webserviceStopwatch.Restart();
-            getCurrentGuestList().sentToWebserver(this);
-          }
         }
       }
       catch (Exception e)
@@ -514,34 +471,24 @@ namespace VenueManager
       // Message Color 
       messageBuilder.AddUiForeground(Colors.getChatColor(player, false));
 
-      // Current player has re-entered the house 
+      // Current player has re-entered the house
       if (justEnteredHouse)
       {
-        if (pluginState.isTrackingOutside)
-          messageBuilder.AddText(" is already at the event");
-        else
-          messageBuilder.AddText(" is already inside");
+        messageBuilder.AddText(" is already inside");
       }
       // Player enters house while you are already inside
       else
       {
-        if (pluginState.isTrackingOutside)
-          messageBuilder.AddText(" has arrived");
-        else
-          messageBuilder.AddText(" has entered");
+        messageBuilder.AddText(" has entered");
         if (player.entryCount > 1)
           messageBuilder.AddText(" (" + player.entryCount + ")");
       }
 
-      // Venue Name 
+      // Venue Name
       if (knownVenue)
       {
         var venue = venueList.venues[pluginState.currentHouse.houseId];
         messageBuilder.AddText(" " + venue.name);
-      }
-      else if (pluginState.isTrackingOutside)
-      {
-        messageBuilder.AddText(" at the event");
       }
       else
       {
@@ -574,15 +521,11 @@ namespace VenueManager
       messageBuilder.Add(new PlayerPayload(player.Name, player.homeWorld));
       messageBuilder.AddText(" has left");
 
-      // Add Venue info 
+      // Add Venue info
       if (knownVenue)
       {
         var venue = venueList.venues[pluginState.currentHouse.houseId];
         messageBuilder.AddText(" " + venue.name);
-      }
-      else if (pluginState.isTrackingOutside)
-      {
-        messageBuilder.AddText(" the event");
       }
       else
       {
@@ -601,10 +544,6 @@ namespace VenueManager
         {
           return guestLists[pluginState.currentHouse.houseId];
         }
-      }
-      else if (pluginState.isTrackingOutside)
-      {
-        return guestLists[1];
       }
       return guestLists[0];
     }

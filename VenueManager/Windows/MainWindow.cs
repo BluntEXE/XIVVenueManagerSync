@@ -14,8 +14,6 @@ public class MainWindow : Window, IDisposable
   private SettingsTab settingsTab;
   private GuestsTab guestsTab;
   private GuestLogTab guestLogTab;
-  private WebserviceTab webserviceTab;
-  private StatsTab statsTab;
   private SalesTab salesTab;
 
   public MainWindow(Plugin plugin) : base(
@@ -32,8 +30,6 @@ public class MainWindow : Window, IDisposable
     this.settingsTab = new SettingsTab(plugin);
     this.guestsTab = new GuestsTab(plugin);
     this.guestLogTab = new GuestLogTab(plugin);
-    this.webserviceTab = new WebserviceTab(plugin);
-    this.statsTab = new StatsTab(plugin);
     this.salesTab = new SalesTab(plugin);
   }
 
@@ -63,22 +59,6 @@ public class MainWindow : Window, IDisposable
           this.guestLogTab.draw();
 
           ImGui.EndTabItem();
-        }
-        if (this.configuration.showWebserviceLogging)
-        {
-          if (ImGui.BeginTabItem("Webserver Logging"))
-          {
-            this.webserviceTab.draw();
-
-            ImGui.EndTabItem();
-          }
-        }
-        // Stats tab
-        if (this.configuration.showStatsTab) {
-          if (ImGui.BeginTabItem("Stats")) {
-            this.statsTab.draw();
-            ImGui.EndTabItem();
-          }
         }
       }
       // Sales tab — plugin-first surface for logging a sale at the
