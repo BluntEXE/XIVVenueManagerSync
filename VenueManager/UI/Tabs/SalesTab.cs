@@ -202,6 +202,11 @@ public class SalesTab
 
       if (result.Success)
       {
+        // Bump the session tally so the dashboard strip's "💰 Ng" readout
+        // updates the same frame this call returns on.
+        plugin.SessionSalesTotal += amount;
+        plugin.SessionSalesCount++;
+
         statusMessage = trimmedName != null
           ? $"Logged {amount}g from {trimmedName}"
           : $"Logged {amount}g";

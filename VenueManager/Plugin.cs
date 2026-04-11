@@ -60,6 +60,21 @@ namespace VenueManager
     public List<Service> availableServices = new();
     public string? currentXivAppVenueId;
 
+    // Session-scoped sales counters — reset on plugin reload. Drive the
+    // dashboard strip's session tally. Not persisted via Configuration
+    // because "session" = plugin lifetime, not calendar day. Incremented
+    // in SalesTab.LogSaleAsync success branch and by any future slash
+    // subcommand paths (e.g. /vm sale!).
+    public int SessionSalesTotal = 0;
+    public int SessionSalesCount = 0;
+
+    // Cached version string pulled from the loaded assembly. Plugin.cs,
+    // XIVVenueManagerSync.json and repo.json are kept in lockstep by the
+    // build + ship ritual, so reading from the running assembly means the
+    // dashboard strip auto-follows whatever version the user installed.
+    public string PluginVersion { get; } =
+      typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "?";
+
     // True for the first loop that a player enters a house 
     private bool justEnteredHouse = false;
 
