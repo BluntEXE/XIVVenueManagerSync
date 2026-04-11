@@ -110,16 +110,23 @@ namespace VenueManager
     [JsonPropertyName("venueId")]
     public string VenueId { get; set; } = "";
 
+    // Server uses zod .optional() which accepts string|undefined but NOT
+    // null. System.Text.Json default-serializes null as literal `null`,
+    // which zod rejects ("Expected string, received null"). Omit the
+    // property entirely when null so the server sees it as undefined.
     [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ServiceId { get; set; }
 
     [JsonPropertyName("amount")]
     public decimal Amount { get; set; }
 
     [JsonPropertyName("customerName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CustomerName { get; set; }
 
     [JsonPropertyName("notes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Notes { get; set; }
   }
 
