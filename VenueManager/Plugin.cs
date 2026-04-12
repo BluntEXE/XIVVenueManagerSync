@@ -137,9 +137,15 @@ namespace VenueManager
       var SaleHelp    = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab. Usage: /vm sale [amount] [customer]" };
       var SaleBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale without opening UI. Usage: /vm sale! <amount> [customer]" };
       var TargetHelp  = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab prefilled with current target as customer. Usage: /vm target [amount]" };
-      CommandManager.AddHandler(CommandNameAlias + " sale",   SaleHelp);
-      CommandManager.AddHandler(CommandNameAlias + " sale!",  SaleBangHelp);
-      CommandManager.AddHandler(CommandNameAlias + " target", TargetHelp);
+      var TargetBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale for your current target without opening UI. Usage: /vm target! <amount>" };
+      var StartHelp      = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock into your current shift. Usage: /vm start" };
+      var EndHelp        = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock out of your active shift. Usage: /vm end" };
+      CommandManager.AddHandler(CommandNameAlias + " sale",    SaleHelp);
+      CommandManager.AddHandler(CommandNameAlias + " sale!",   SaleBangHelp);
+      CommandManager.AddHandler(CommandNameAlias + " target",  TargetHelp);
+      CommandManager.AddHandler(CommandNameAlias + " target!", TargetBangHelp);
+      CommandManager.AddHandler(CommandNameAlias + " start",   StartHelp);
+      CommandManager.AddHandler(CommandNameAlias + " end",     EndHelp);
 
       PluginInterface.UiBuilder.Draw += DrawUI;
 
@@ -185,6 +191,9 @@ namespace VenueManager
       CommandManager.RemoveHandler(CommandNameAlias + " sale");
       CommandManager.RemoveHandler(CommandNameAlias + " sale!");
       CommandManager.RemoveHandler(CommandNameAlias + " target");
+      CommandManager.RemoveHandler(CommandNameAlias + " target!");
+      CommandManager.RemoveHandler(CommandNameAlias + " start");
+      CommandManager.RemoveHandler(CommandNameAlias + " end");
     }
 
     private void OnSnooze()
@@ -240,6 +249,25 @@ namespace VenueManager
           customerFromArgs = string.Join(' ', parts, 2, parts.Length - 2);
         }
 
+        if (verb == "target!")
+        {
+          string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+          if (parsedAmount == null)
+          {
+            Chat.Print(prefix + "Usage: /vm target! <amount>");
+            return;
+          }
+          var t = TargetManager.Target;
+          var targetName = t?.Name.TextValue;
+          if (string.IsNullOrEmpty(targetName))
+          {
+            Chat.Print(prefix + "No target selected.");
+            return;
+          }
+          _ = LogSaleSilentAsync(parsedAmount.Value, targetName);
+          return;
+        }
+
         if (verb == "target")
         {
           // For /vm target the "customer" override is the game target,
@@ -269,6 +297,18 @@ namespace VenueManager
         MainWindow.OpenTab("Sales");
         MainWindow.PrefillSale(parsedAmount, customerFromArgs);
         MainWindow.IsOpen = true;
+        return;
+      }
+
+      if (args == "start")
+      {
+        _ = ShiftClockInSilentAsync();
+        return;
+      }
+
+      if (args == "end")
+      {
+        _ = ShiftClockOutSilentAsync();
         return;
       }
 
@@ -324,6 +364,93 @@ namespace VenueManager
       {
         Log.Error($"LogSaleSilentAsync exception: {ex}");
         Chat.Print(prefix + $"Sale error: {ex.Message}");
+      }
+    }
+
+    // Fire-and-forget clock-in used by `/vm start`. Finds the first
+    // SCHEDULED shift within its clock-in window and clocks in.
+    public async Task ShiftClockInSilentAsync()
+    {
+      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+
+      if (xivAppClient == null || !xivAppClient.IsConfigured)
+      {
+        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
+        return;
+      }
+      if (string.IsNullOrEmpty(currentXivAppVenueId))
+      {
+        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
+        return;
+      }
+
+      try
+      {
+        var shifts = await xivAppClient.GetMyShiftsAsync(currentXivAppVenueId);
+        var scheduled = shifts.Find(s => s.Status == "SCHEDULED");
+
+        if (scheduled == null)
+        {
+          Chat.Print(prefix + "No scheduled shift found to clock into.");
+          return;
+        }
+
+        var result = await xivAppClient.ClockInAsync(scheduled.Id);
+        if (result.Success)
+          Chat.Print(prefix + "Clocked in. Shift is now active.");
+        else
+          Chat.Print(prefix + $"Clock-in failed: {result.Error ?? "unknown error"}");
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"ShiftClockInSilentAsync exception: {ex}");
+        Chat.Print(prefix + $"Clock-in error: {ex.Message}");
+      }
+    }
+
+    // Fire-and-forget clock-out used by `/vm end`. Finds the first
+    // ACTIVE shift and clocks out, reporting hours worked.
+    public async Task ShiftClockOutSilentAsync()
+    {
+      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+
+      if (xivAppClient == null || !xivAppClient.IsConfigured)
+      {
+        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
+        return;
+      }
+      if (string.IsNullOrEmpty(currentXivAppVenueId))
+      {
+        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
+        return;
+      }
+
+      try
+      {
+        var shifts = await xivAppClient.GetMyShiftsAsync(currentXivAppVenueId);
+        var active = shifts.Find(s => s.Status == "ACTIVE");
+
+        if (active == null)
+        {
+          Chat.Print(prefix + "No active shift found to clock out of.");
+          return;
+        }
+
+        var result = await xivAppClient.ClockOutAsync(active.Id);
+        if (result.Success)
+        {
+          var hoursMsg = result.HoursWorked.HasValue
+            ? $" ({result.HoursWorked.Value:F1}h worked)"
+            : "";
+          Chat.Print(prefix + $"Clocked out.{hoursMsg}");
+        }
+        else
+          Chat.Print(prefix + $"Clock-out failed: {result.Error ?? "unknown error"}");
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"ShiftClockOutSilentAsync exception: {ex}");
+        Chat.Print(prefix + $"Clock-out error: {ex.Message}");
       }
     }
 
