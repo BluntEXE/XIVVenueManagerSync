@@ -12,6 +12,8 @@ using System.Diagnostics;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using System.Collections.Generic;
 using System;
+using System.Globalization;
+using System.Threading.Tasks;
 using VenueManager.UI;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Bindings.ImGui;
@@ -113,6 +115,16 @@ namespace VenueManager
       var SnoozeHandlerAlias = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /venue snooze" };
       CommandManager.AddHandler(CommandName + " snooze", SnoozeHandler);
       CommandManager.AddHandler(CommandNameAlias + " snooze", SnoozeHandlerAlias);
+      // Sale subcommand sugar. Dalamud dispatches on the parent command
+      // (OnCommand receives args="sale 500 Ehno") — these AddHandler
+      // calls exist purely to surface each subcommand in /xlhelp. The
+      // actual routing lives in OnCommand's args parser.
+      var SaleHelp    = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab. Usage: /vm sale [amount] [customer]" };
+      var SaleBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale without opening UI. Usage: /vm sale! <amount> [customer]" };
+      var TargetHelp  = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab prefilled with current target as customer. Usage: /vm target [amount]" };
+      CommandManager.AddHandler(CommandNameAlias + " sale",   SaleHelp);
+      CommandManager.AddHandler(CommandNameAlias + " sale!",  SaleBangHelp);
+      CommandManager.AddHandler(CommandNameAlias + " target", TargetHelp);
 
       PluginInterface.UiBuilder.Draw += DrawUI;
 
@@ -155,6 +167,9 @@ namespace VenueManager
       CommandManager.RemoveHandler(CommandNameAlias);
       CommandManager.RemoveHandler(CommandName + " snooze");
       CommandManager.RemoveHandler(CommandNameAlias + " snooze");
+      CommandManager.RemoveHandler(CommandNameAlias + " sale");
+      CommandManager.RemoveHandler(CommandNameAlias + " sale!");
+      CommandManager.RemoveHandler(CommandNameAlias + " target");
     }
 
     private void OnSnooze()
@@ -182,8 +197,119 @@ namespace VenueManager
         OnSnooze();
         return;
       }
+
+      // Sale subcommand family. Split on whitespace, first token is the
+      // verb, second token is the amount (integer), the rest is a free
+      // text customer name (may contain spaces).
+      //
+      // /vm sale                    → open Sales tab, no prefill
+      // /vm sale 500                → open Sales tab, amount=500
+      // /vm sale 500 Ehno Smith     → open Sales tab, amount=500, customer="Ehno Smith"
+      // /vm sale! 500 Ehno          → log immediately, no UI shown, chat toast on result
+      // /vm target                  → open Sales tab with current target prefilled
+      // /vm target 500              → open Sales tab with current target + amount
+      if (args.StartsWith("sale") || args.StartsWith("target"))
+      {
+        var parts = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var verb = parts.Length > 0 ? parts[0] : "";
+
+        int? parsedAmount = null;
+        if (parts.Length >= 2 && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var a) && a > 0)
+        {
+          parsedAmount = a;
+        }
+
+        string? customerFromArgs = null;
+        if (parts.Length >= 3)
+        {
+          customerFromArgs = string.Join(' ', parts, 2, parts.Length - 2);
+        }
+
+        if (verb == "target")
+        {
+          // For /vm target the "customer" override is the game target,
+          // not an args field. If the player has no target we fall
+          // through with null and let the Sales tab's own Use Target
+          // flow handle it next frame.
+          var t = TargetManager.Target;
+          var targetName = t?.Name.TextValue;
+          MainWindow.OpenTab("Sales");
+          MainWindow.PrefillSale(parsedAmount, targetName);
+          MainWindow.IsOpen = true;
+          return;
+        }
+
+        if (verb == "sale!")
+        {
+          if (parsedAmount == null)
+          {
+            Chat.Print((this.Configuration.showPluginNameInChat ? $"[{Name}] " : "") + "Usage: /vm sale! <amount> [customer]");
+            return;
+          }
+          _ = LogSaleSilentAsync(parsedAmount.Value, customerFromArgs);
+          return;
+        }
+
+        // Plain "sale" — open Sales tab with whatever prefill is available.
+        MainWindow.OpenTab("Sales");
+        MainWindow.PrefillSale(parsedAmount, customerFromArgs);
+        MainWindow.IsOpen = true;
+        return;
+      }
+
       // in response to the slash command, just display our main ui
       MainWindow.IsOpen = true;
+    }
+
+    // Fire-and-forget silent sale log used by `/vm sale!`. Bypasses the
+    // Sales tab form state entirely — writes straight through to the
+    // XIV-App API and posts a chat toast on result. Success increments
+    // the dashboard session tally so the strip readout stays consistent
+    // regardless of which code path logged the sale.
+    public async Task LogSaleSilentAsync(int amount, string? customer)
+    {
+      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+
+      if (xivAppClient == null || !xivAppClient.IsConfigured)
+      {
+        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
+        return;
+      }
+      if (string.IsNullOrEmpty(currentXivAppVenueId))
+      {
+        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
+        return;
+      }
+
+      try
+      {
+        string? trimmedName = string.IsNullOrWhiteSpace(customer) ? null : customer!.Trim();
+        var result = await xivAppClient.LogTransactionAsync(
+          currentXivAppVenueId,
+          null,          // no service id from slash path
+          (decimal)amount,
+          trimmedName,
+          null           // no notes from slash path
+        );
+
+        if (result.Success)
+        {
+          SessionSalesTotal += amount;
+          SessionSalesCount++;
+          Chat.Print(prefix + (trimmedName != null
+            ? $"Logged {amount}g from {trimmedName}"
+            : $"Logged {amount}g"));
+        }
+        else
+        {
+          Chat.Print(prefix + $"Sale failed: {result.Error ?? "unknown error"}");
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"LogSaleSilentAsync exception: {ex}");
+        Chat.Print(prefix + $"Sale error: {ex.Message}");
+      }
     }
 
     private void DrawUI()

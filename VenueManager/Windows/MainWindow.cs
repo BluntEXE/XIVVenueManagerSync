@@ -17,6 +17,12 @@ public class MainWindow : Window, IDisposable
   private GuestLogTab guestLogTab;
   private SalesTab salesTab;
 
+  // One-shot tab focus request. Set by OpenTab() (e.g. from slash
+  // commands), consumed on the next Draw() frame by the tab whose label
+  // matches. Cleared after the tab bar cycle so normal user clicks are
+  // not stomped on subsequent frames.
+  private string? pendingTab = null;
+
   // Strip palette. Mauve / emerald / peach chosen to loosely track the
   // Catppuccin Mocha vocab the website uses so plugin + site feel like
   // the same product.
@@ -47,28 +53,51 @@ public class MainWindow : Window, IDisposable
   {
   }
 
+  // Request that a named tab be focused on the next Draw frame. Called
+  // from slash command handlers and any future "jump to tab" plumbing.
+  // Safe to call when the window is closed — Draw() runs only when the
+  // window is open, so the flag sits until then.
+  public void OpenTab(string name)
+  {
+    this.pendingTab = name;
+  }
+
+  // Forward a prefill request to the Sales tab. Lives here so callers
+  // (Plugin.OnCommand) don't need direct handles to every tab instance.
+  public void PrefillSale(int? amount, string? customer)
+  {
+    this.salesTab.Prefill(amount, customer);
+  }
+
+  // Helper: return the flag a tab should pass to BeginTabItem this
+  // frame to win a pending focus race. Only the matching tab gets
+  // SetSelected; everyone else gets None. The caller (Draw) clears
+  // pendingTab after EndTabBar to make this a one-shot.
+  private ImGuiTabItemFlags flagFor(string name)
+  {
+    return (pendingTab == name) ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
+  }
+
   public override void Draw()
   {
     try
     {
       drawDashboardStrip();
       ImGui.BeginTabBar("Tabs");
-      // Render Patrons tab if selected. (Historically named "Guests" —
-      // the UI label is "Patrons" to match site vocabulary, but the
-      // internal type/field names are still Guest* until the internal
-      // naming pass lands with its data-migration shim.)
+      // Tab order (left to right): Patrons │ Sales │ History │ Venues │ Settings
+      // The hot path is "who's here now" → "log a sale", so those two
+      // ride leftmost. History (formerly "Logs") is the past-visit
+      // lookup surface and will be retired once Arc 3 ships the web
+      // timeline; keeping it parked here until then.
+      //
+      // Historical note: internal identifiers are still Guest* (class
+      // names, disk file format, config key `showGuestsTab`) until the
+      // internal naming pass lands with its data-migration shim.
       if (this.configuration.showGuestsTab)
       {
-        if (ImGui.BeginTabItem("Patrons"))
+        if (ImGui.BeginTabItem("Patrons", flagFor("Patrons")))
         {
           this.guestsTab.draw();
-
-          ImGui.EndTabItem();
-        }
-        if (ImGui.BeginTabItem("Logs"))
-        {
-          this.guestLogTab.draw();
-
           ImGui.EndTabItem();
         }
       }
@@ -76,27 +105,40 @@ public class MainWindow : Window, IDisposable
       // active XIV-App venue. Always shown; the tab itself gates on
       // API key + selected venue and shows a helpful message when not
       // configured.
-      if (ImGui.BeginTabItem("Sales"))
+      if (ImGui.BeginTabItem("Sales", flagFor("Sales")))
       {
         this.salesTab.draw();
         ImGui.EndTabItem();
       }
+      // History — per-venue past visit lookup. Shares the same config
+      // toggle as Patrons since they're the same concept at different
+      // time scopes (now vs. past).
+      if (this.configuration.showGuestsTab)
+      {
+        if (ImGui.BeginTabItem("History", flagFor("History")))
+        {
+          this.guestLogTab.draw();
+          ImGui.EndTabItem();
+        }
+      }
       // Render Venues Tab
       if (this.configuration.showVenueTab)
       {
-        if (ImGui.BeginTabItem("Venues"))
+        if (ImGui.BeginTabItem("Venues", flagFor("Venues")))
         {
           venuesTab.draw();
           ImGui.EndTabItem();
         }
       }
-      // Render Settings Tab if selected 
-      if (ImGui.BeginTabItem("Settings"))
+      // Render Settings Tab if selected
+      if (ImGui.BeginTabItem("Settings", flagFor("Settings")))
       {
         this.settingsTab.draw();
         ImGui.EndTabItem();
       }
       ImGui.EndTabBar();
+      // One-shot: whichever tab consumed pendingTab this frame is done.
+      this.pendingTab = null;
     }
     catch (Exception e)
     {

@@ -32,6 +32,20 @@ public class SalesTab
     this.plugin = plugin;
   }
 
+  // Accept prefill values from slash commands (/vm sale, /vm target).
+  // Called before the window opens; the next draw() frame picks up
+  // the new field values via normal ImGui immediate-mode reads.
+  public void Prefill(int? amount, string? customer)
+  {
+    if (amount.HasValue)
+      amountText = amount.Value.ToString(CultureInfo.InvariantCulture);
+    if (customer != null)
+    {
+      customerName = customer;
+      customerPrimed = true; // don't let auto-prime overwrite the explicit value
+    }
+  }
+
   public void draw()
   {
     ImGui.BeginChild(1);
