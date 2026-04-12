@@ -70,6 +70,21 @@ namespace VenueManager
     public int SessionSalesTotal = 0;
     public int SessionSalesCount = 0;
 
+    // Build a deep-link URL into the XIV-App website for the currently
+    // selected venue. Returns null if no venue is selected or the slug
+    // is missing (pre-Foundation venue data).
+    public string? BuildVenueUrl(string? subpath = null)
+    {
+      if (string.IsNullOrEmpty(currentXivAppVenueId)) return null;
+      var venue = xivAppVenues.Find(v => v.Id == currentXivAppVenueId);
+      if (venue == null || string.IsNullOrEmpty(venue.Slug)) return null;
+      var baseUrl = Configuration.xivAppServerUrl.TrimEnd('/');
+      var path = $"/dashboard/{venue.Slug}";
+      if (!string.IsNullOrEmpty(subpath))
+        path += "/" + subpath.TrimStart('/');
+      return baseUrl + path;
+    }
+
     // Cached version string pulled from the loaded assembly. Plugin.cs,
     // XIVVenueManagerSync.json and repo.json are kept in lockstep by the
     // build + ship ritual, so reading from the running assembly means the

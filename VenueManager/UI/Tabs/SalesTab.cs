@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Utility;
 
 namespace VenueManager.Tabs;
 
@@ -176,6 +177,20 @@ public class SalesTab
         ? new Vector4(0.95f, 0.4f, 0.4f, 1f)
         : new Vector4(0.4f, 0.85f, 0.5f, 1f);
       ImGui.TextColored(color, statusMessage);
+
+      // After a successful sale, offer a deep link to the sales page.
+      if (!statusIsError)
+      {
+        var salesUrl = plugin.BuildVenueUrl("sales");
+        if (salesUrl != null)
+        {
+          ImGui.SameLine();
+          if (ImGui.SmallButton("View on site"))
+          {
+            Util.OpenLink(salesUrl);
+          }
+        }
+      }
     }
 
     ImGui.EndChild();

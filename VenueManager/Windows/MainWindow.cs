@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Dalamud.Interface.Windowing;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Utility;
 using VenueManager.Tabs;
 
 namespace VenueManager.Windows;
@@ -186,21 +187,41 @@ public class MainWindow : Window, IDisposable
         : $"{plugin.SessionSalesCount} sales logged this session");
     }
 
-    // Right-aligned venue name + version. Measure the text and push
-    // the cursor to (rightEdge - width) so it hugs the right border
-    // regardless of window width.
+    // Right-aligned: [Web] venue-name  vN.N.N
+    // Measure all elements so we can push the cursor right.
     string venueLabel = string.IsNullOrEmpty(plugin.pluginState.currentHouse.name)
       ? "(no venue)"
       : plugin.pluginState.currentHouse.name;
-    string rightText = $"{venueLabel}   v{plugin.PluginVersion}";
-    var rightSize = ImGui.CalcTextSize(rightText);
+    string versionText = $"v{plugin.PluginVersion}";
+    var venueUrl = plugin.BuildVenueUrl();
+    bool hasUrl = venueUrl != null;
+
+    // Measure widths: button + spacing + venue label + spacing + version
+    var style = ImGui.GetStyle();
+    float btnWidth = hasUrl
+      ? ImGui.CalcTextSize("Web").X + style.FramePadding.X * 2 + style.ItemSpacing.X
+      : 0;
+    float textWidth = ImGui.CalcTextSize($"{venueLabel}   {versionText}").X;
+    float totalRight = btnWidth + textWidth;
+
     float avail = ImGui.GetContentRegionAvail().X;
     ImGui.SameLine();
-    // Nudge cursor to the right edge. Clamp to 0 so tiny windows still
-    // render the label inline rather than wrapping negatively.
-    float offset = avail - rightSize.X - ImGui.GetStyle().ItemSpacing.X;
+    float offset = avail - totalRight - style.ItemSpacing.X;
     if (offset > 0) ImGui.SetCursorPosX(ImGui.GetCursorPosX() + offset);
-    ImGui.TextColored(StripMuted, rightText);
+
+    if (hasUrl)
+    {
+      if (ImGui.SmallButton("Web"))
+      {
+        Util.OpenLink(venueUrl!);
+      }
+      if (ImGui.IsItemHovered())
+      {
+        ImGui.SetTooltip($"Open {venueLabel} on xivvenuemanager.com");
+      }
+      ImGui.SameLine();
+    }
+    ImGui.TextColored(StripMuted, $"{venueLabel}   {versionText}");
 
     ImGui.Separator();
   }
