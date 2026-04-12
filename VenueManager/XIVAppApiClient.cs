@@ -144,6 +144,45 @@ namespace VenueManager
     public string? Error { get; set; }
   }
 
+  // Shift DTO — mirrors the JSON shape returned by GET /api/plugin/shifts
+  public class ShiftDto
+  {
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("scheduledStart")]
+    public string ScheduledStart { get; set; } = "";
+
+    [JsonPropertyName("scheduledEnd")]
+    public string ScheduledEnd { get; set; } = "";
+
+    [JsonPropertyName("actualStart")]
+    public string? ActualStart { get; set; }
+
+    [JsonPropertyName("actualEnd")]
+    public string? ActualEnd { get; set; }
+
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "";
+
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+  }
+
+  public class ShiftsResponse
+  {
+    [JsonPropertyName("shifts")]
+    public List<ShiftDto> Shifts { get; set; } = new();
+  }
+
+  public class ClockResult
+  {
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+    public string? Status { get; set; }
+    public double? HoursWorked { get; set; }
+  }
+
   public class XIVAppApiException : Exception
   {
     public XIVAppApiException(string message) : base(message) { }
@@ -377,6 +416,91 @@ namespace VenueManager
       {
         Plugin.Log.Warning($"Error logging transaction: {ex.Message}");
         return new LogTransactionResult { Success = false, Error = ex.Message };
+      }
+    }
+
+    public async Task<List<ShiftDto>> GetMyShiftsAsync(string venueId)
+    {
+      if (!IsConfigured) return new List<ShiftDto>();
+
+      try
+      {
+        var response = await _httpClient.GetAsync(
+          $"{_baseUrl}/api/plugin/shifts?venueId={venueId}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+          Plugin.Log.Warning($"Failed to get shifts: {response.StatusCode}");
+          return new List<ShiftDto>();
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<ShiftsResponse>();
+        return result?.Shifts ?? new List<ShiftDto>();
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error fetching shifts: {ex.Message}");
+        return new List<ShiftDto>();
+      }
+    }
+
+    public async Task<ClockResult> ClockInAsync(string shiftId)
+    {
+      if (!IsConfigured)
+        return new ClockResult { Success = false, Error = "API not configured" };
+
+      try
+      {
+        var payload = new { shiftId };
+        var response = await _httpClient.PostAsJsonAsync(
+          $"{_baseUrl}/api/plugin/shifts/clock-in", payload);
+
+        if (!response.IsSuccessStatusCode)
+        {
+          var error = await response.Content.ReadAsStringAsync();
+          return new ClockResult { Success = false, Error = error };
+        }
+
+        return new ClockResult { Success = true, Status = "ACTIVE" };
+      }
+      catch (Exception ex)
+      {
+        return new ClockResult { Success = false, Error = ex.Message };
+      }
+    }
+
+    public async Task<ClockResult> ClockOutAsync(string shiftId)
+    {
+      if (!IsConfigured)
+        return new ClockResult { Success = false, Error = "API not configured" };
+
+      try
+      {
+        var payload = new { shiftId };
+        var response = await _httpClient.PostAsJsonAsync(
+          $"{_baseUrl}/api/plugin/shifts/clock-out", payload);
+
+        if (!response.IsSuccessStatusCode)
+        {
+          var error = await response.Content.ReadAsStringAsync();
+          return new ClockResult { Success = false, Error = error };
+        }
+
+        // Parse hoursWorked from response
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        double? hours = null;
+        if (json.TryGetProperty("shift", out var shiftEl)
+            && shiftEl.TryGetProperty("hoursWorked", out var hw)
+            && hw.ValueKind == JsonValueKind.Number)
+        {
+          hours = hw.GetDouble();
+        }
+
+        return new ClockResult { Success = true, Status = "COMPLETED", HoursWorked = hours };
+      }
+      catch (Exception ex)
+      {
+        return new ClockResult { Success = false, Error = ex.Message };
       }
     }
 

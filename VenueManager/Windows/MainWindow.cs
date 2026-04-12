@@ -17,6 +17,7 @@ public class MainWindow : Window, IDisposable
   private GuestsTab guestsTab;
   private GuestLogTab guestLogTab;
   private SalesTab salesTab;
+  private ShiftsTab shiftsTab;
 
   // One-shot tab focus request. Set by OpenTab() (e.g. from slash
   // commands), consumed on the next Draw() frame by the tab whose label
@@ -48,6 +49,7 @@ public class MainWindow : Window, IDisposable
     this.guestsTab = new GuestsTab(plugin);
     this.guestLogTab = new GuestLogTab(plugin);
     this.salesTab = new SalesTab(plugin);
+    this.shiftsTab = new ShiftsTab(plugin);
   }
 
   public void Dispose()
@@ -121,6 +123,13 @@ public class MainWindow : Window, IDisposable
           this.guestLogTab.draw();
           ImGui.EndTabItem();
         }
+      }
+      // My Shift — always rendered (like Sales); tab body gates on
+      // API key + venue. Staff see their schedule and clock in/out.
+      if (ImGui.BeginTabItem("My Shift", flagFor("My Shift")))
+      {
+        this.shiftsTab.draw();
+        ImGui.EndTabItem();
       }
       // Render Venues Tab
       if (this.configuration.showVenueTab)
