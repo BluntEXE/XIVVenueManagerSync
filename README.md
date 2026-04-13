@@ -35,13 +35,13 @@ A Dalamud plugin for FFXIV that syncs patron visits, sales, and shift tracking w
 
 ## Installation
 
-Add the custom plugin repository to Dalamud, then search for **XIVVenueManagerSync**.
+Add the custom plugin repository to Dalamud (https://raw.githubusercontent.com/BluntEXE/XIVVenueManagerSync/master/repo.json), then search for **XIVVenueManagerSync**.
 
 ## Configuration
 
 1. Open plugin settings (`/vm` → Settings tab)
 2. Enter your XIVVenueManager API key
-3. Enter the server URL (e.g. `http://192.168.1.122:3000`)
+3. Enter the server URL (e.g. `https://xivvenuemanager.com`)
 4. Select which venue to log to
 5. Enable sync
 
