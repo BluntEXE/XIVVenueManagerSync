@@ -1,6 +1,7 @@
 using Dalamud.Configuration;
 using Dalamud.Plugin;
 using System;
+using System.Collections.Generic;
 
 namespace VenueManager
 {
@@ -35,6 +36,15 @@ namespace VenueManager
     public string xivAppServerUrl { get; set; } = "https://xivvenuemanager.com";
     public string selectedVenueId { get; set; } = "";
     public bool syncToXivApp { get; set; } = false;
+
+    // Maps in-game HouseId → xiv-app venueId so patron visits log to the
+    // right venue automatically. Populated from the VenuesTab linking UI.
+    public Dictionary<long, string> houseToXivAppVenue { get; set; } = new();
+
+    // When true (default), patron visits only sync during an active event
+    // at the linked venue. Non-event visits are still tracked locally in
+    // the plugin's guest list but aren't posted. Flip off to sync 24/7.
+    public bool syncOnlyDuringEvents { get; set; } = true;
 
     // the below exist just to make saving less cumbersome
     [NonSerialized]

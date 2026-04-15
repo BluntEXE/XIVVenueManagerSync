@@ -62,6 +62,11 @@ namespace VenueManager
     public List<Service> availableServices = new();
     public string? currentXivAppVenueId;
 
+    // Event-presence cache used to gate patron-visit sync when the user
+    // has opted into "sync only during events". 60s TTL per venue — see
+    // EventPresenceCache for the reasoning.
+    public EventPresenceCache eventPresence = new();
+
     // Session-scoped sales counters — reset on plugin reload. Drive the
     // dashboard strip's session tally. Not persisted via Configuration
     // because "session" = plugin lifetime, not calendar day. Incremented
@@ -110,10 +115,13 @@ namespace VenueManager
       this.Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
       this.Configuration.Initialize(PluginInterface);
 
-      // Initialize XIV-App API Client if configured
+      // XIV-App API Client is always instantiated so the Settings tab can
+      // lazy-configure it the moment the user pastes a key. Previously this
+      // was gated on the key already being present, which made first-time
+      // setup require a game restart before Fetch Venues would work.
+      xivAppClient = new XIVAppApiClient();
       if (!string.IsNullOrEmpty(Configuration.xivAppApiKey))
       {
-          xivAppClient = new XIVAppApiClient();
           xivAppClient.Configure(Configuration.xivAppApiKey, Configuration.xivAppServerUrl);
           Log.Information("XIV-App API Client configured with server: {0}", Configuration.xivAppServerUrl);
       }
@@ -610,15 +618,16 @@ namespace VenueManager
             // Store Player name 
             if (PlayerState.CharacterName != null && PlayerState.CharacterName.Length > 0) pluginState.playerName = PlayerState.CharacterName ?? "";
 
-            // New Player has entered the house 
+            // New Player has entered the house
             if (!getCurrentGuestList().guests.ContainsKey(player.Name))
             {
               guestListUpdated = true;
               getCurrentGuestList().guests.Add(player.Name, player);
               if (!isSelf) playerArrived = true;
               showGuestEnterChatAlert(getCurrentGuestList().guests[player.Name], isSelf);
+              TryLogPatronVisit(player.Name, player.WorldName, "enter");
             }
-            // Mark the player as re-entering the venue 
+            // Mark the player as re-entering the venue
             else if (!getCurrentGuestList().guests[player.Name].inHouse)
             {
               guestListUpdated = true;
@@ -627,6 +636,7 @@ namespace VenueManager
               getCurrentGuestList().guests[player.Name].timeCursor = DateTime.Now;
               getCurrentGuestList().guests[player.Name].entryCount++;
               showGuestEnterChatAlert(getCurrentGuestList().guests[player.Name], isSelf);
+              TryLogPatronVisit(player.Name, player.WorldName, "enter");
             }
             // Current user just entered house
             else if (justEnteredHouse)
@@ -656,12 +666,13 @@ namespace VenueManager
             // Guest is marked as in the house 
             if (guest.Value.inHouse) 
             {
-              // Guest was not seen this loop 
+              // Guest was not seen this loop
               if (!seenPlayers.ContainsKey(guest.Value.Name))
               {
                 guest.Value.onLeaveVenue();
                 guestListUpdated = true;
                 showGuestLeaveChatAlert(guest.Value);
+                TryLogPatronVisit(guest.Value.Name, guest.Value.WorldName, "leave");
               }
               // Guest was seen this loop 
               else 
@@ -839,6 +850,68 @@ namespace VenueManager
       messageBuilder.Add(new PlayerPayload(player.Name, player.homeWorld));
       var entry = new XivChatEntry() { Message = messageBuilder.Build() };
       Chat.Print(entry);
+    }
+
+    /// <summary>
+    /// Fire-and-forget patron-visit sync. Every enter/re-entry/leave the
+    /// plugin observes at the current house is routed through here. We
+    /// intentionally DO NOT filter out the plugin user's own character —
+    /// staff who are off-duty (no active shift) count as patrons visiting
+    /// their own venue, and the server classifies via wasWorking on insert.
+    ///
+    /// Gating order (cheapest first):
+    ///   1. Sync enabled + API key present + client configured.
+    ///   2. Current house → xiv-app venueId mapping exists.
+    ///   3. If syncOnlyDuringEvents, the cached event-presence flag is true
+    ///      (or, on cache miss, we fetch it async and bail for this arrival
+    ///      — the next arrival within the TTL will go through).
+    ///   4. Post.
+    /// All failures log at Debug and swallow — we never surface a sync
+    /// hiccup in chat during live service.
+    /// </summary>
+    public void TryLogPatronVisit(string characterName, string worldName, string action)
+    {
+      if (!Configuration.syncToXivApp) return;
+      if (string.IsNullOrEmpty(Configuration.xivAppApiKey)) return;
+      if (xivAppClient == null || !xivAppClient.IsConfigured) return;
+      if (string.IsNullOrEmpty(characterName) || string.IsNullOrEmpty(worldName)) return;
+
+      var houseId = pluginState.currentHouse.houseId;
+      if (houseId == 0) return;
+      if (!Configuration.houseToXivAppVenue.TryGetValue(houseId, out var venueId) || string.IsNullOrEmpty(venueId))
+      {
+        // No link configured for this house — silent skip. The VenuesTab
+        // linking UI is the user-facing remedy.
+        return;
+      }
+
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          if (Configuration.syncOnlyDuringEvents)
+          {
+            var cached = eventPresence.Get(venueId);
+            if (cached == null)
+            {
+              var fresh = await xivAppClient.GetActiveEventAsync(venueId);
+              if (fresh == null) return; // transport error — try again next arrival
+              eventPresence.Set(venueId, fresh.Active, fresh.EventId);
+              if (!fresh.Active) return;
+            }
+            else if (!cached.Active)
+            {
+              return;
+            }
+          }
+
+          await xivAppClient.LogPatronVisitAsync(venueId, characterName, worldName, action);
+        }
+        catch (Exception ex)
+        {
+          Log.Debug($"TryLogPatronVisit failed: {ex.Message}");
+        }
+      });
     }
 
   } // Plugin

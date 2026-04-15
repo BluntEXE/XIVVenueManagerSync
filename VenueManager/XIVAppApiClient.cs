@@ -183,6 +183,24 @@ namespace VenueManager
     public double? HoursWorked { get; set; }
   }
 
+  // Active-event DTO — mirrors GET /api/plugin/events/active. Used by
+  // EventPresenceCache to gate patron-visit sync when the user has opted
+  // into "sync only during events".
+  public class ActiveEventResponse
+  {
+    [JsonPropertyName("active")]
+    public bool Active { get; set; }
+
+    [JsonPropertyName("eventId")]
+    public string? EventId { get; set; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+  }
+
   public class XIVAppApiException : Exception
   {
     public XIVAppApiException(string message) : base(message) { }
@@ -203,11 +221,18 @@ namespace VenueManager
 
     public void Configure(string apiKey, string serverUrl)
     {
-      _apiKey = apiKey;
-      _baseUrl = serverUrl.TrimEnd('/');
-      
+      _apiKey = apiKey?.Trim() ?? "";
+      _baseUrl = (serverUrl ?? "").Trim().TrimEnd('/');
+
       _httpClient.DefaultRequestHeaders.Clear();
-      _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+      if (!string.IsNullOrEmpty(_apiKey))
+      {
+        // TryAddWithoutValidation avoids FormatException on stray whitespace
+        // or control chars that snuck past the UI trim (e.g. zero-width
+        // characters from Discord). A malformed key will still 401 at the
+        // server — but now the client won't throw before the request.
+        _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-api-key", _apiKey);
+      }
     }
 
     public bool IsConfigured => !string.IsNullOrEmpty(_apiKey) && !string.IsNullOrEmpty(_baseUrl);
@@ -295,6 +320,32 @@ namespace VenueManager
       {
         Plugin.Log.Warning($"Error fetching roles: {ex.Message}");
         return new List<Role>();
+      }
+    }
+
+    public async Task<ActiveEventResponse?> GetActiveEventAsync(string venueId)
+    {
+      if (!IsConfigured)
+      {
+        return null;
+      }
+
+      try
+      {
+        var response = await _httpClient.GetAsync($"{_baseUrl}/api/plugin/events/active?venueId={Uri.EscapeDataString(venueId)}");
+        if (!response.IsSuccessStatusCode)
+        {
+          // 403 (venue not authorized) and 404 are both non-actionable
+          // from the plugin's side — treat as "no active event" and move on.
+          Plugin.Log.Debug($"GetActiveEventAsync {venueId}: {response.StatusCode}");
+          return new ActiveEventResponse { Active = false };
+        }
+        return await response.Content.ReadFromJsonAsync<ActiveEventResponse>();
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error fetching active event: {ex.Message}");
+        return null;
       }
     }
 

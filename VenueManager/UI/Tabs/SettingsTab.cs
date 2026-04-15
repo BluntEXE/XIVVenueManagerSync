@@ -26,6 +26,16 @@ public class SettingsTab
   private Plugin plugin;
   private Configuration configuration;
 
+  // Status line shown under Fetch Venues so users see success/failure of
+  // button-press actions instead of a silent no-op. Updated by the async
+  // Fetch* methods below.
+  private string xivAppStatus = "";
+  private Vector4 xivAppStatusColor = new Vector4(0.7f, 0.7f, 0.7f, 1f);
+
+  private static readonly Vector4 StatusOk   = new Vector4(0.4f, 0.9f, 0.5f, 1f);
+  private static readonly Vector4 StatusWarn = new Vector4(1.0f, 0.8f, 0.3f, 1f);
+  private static readonly Vector4 StatusErr  = new Vector4(1.0f, 0.4f, 0.4f, 1f);
+
   public SettingsTab(Plugin plugin)
   {
     this.plugin = plugin;
@@ -270,26 +280,51 @@ PlaceName: {mapData.PlaceName.Value.Name.ExtractText()}
     
     ImGui.Indent(10);
     
-    // API Key input
+    // API Key input. We trim on every keystroke to strip the whitespace/
+    // newlines that regularly sneak in from Discord copy-paste — those
+    // cause HttpClient.DefaultRequestHeaders.Add to throw a FormatException
+    // and the key was silently never applied.
     var apiKey = this.configuration.xivAppApiKey ?? "";
     if (ImGui.InputText("API Key", ref apiKey, 128))
     {
-      this.configuration.xivAppApiKey = apiKey;
+      this.configuration.xivAppApiKey = apiKey.Trim();
       this.configuration.Save();
+      ReconfigureXivAppClient();
+    }
+    // Auto-fetch once the user finishes editing the key (blur), so a paste +
+    // click-elsewhere is enough — no separate Fetch Venues click required.
+    if (ImGui.IsItemDeactivatedAfterEdit() && !string.IsNullOrEmpty(this.configuration.xivAppApiKey))
+    {
+      _ = FetchXivAppVenuesAsync();
+    }
+    // Inline validation feedback so users aren't left guessing why Fetch
+    // Venues does nothing when their key is malformed.
+    if (!string.IsNullOrEmpty(this.configuration.xivAppApiKey) && !this.configuration.xivAppApiKey.StartsWith("vm_"))
+    {
+      ImGui.TextColored(StatusErr, "Key must start with 'vm_' — generate one at xivvenuemanager.com/dashboard/api-keys.");
     }
 
     // Server URL input
     var serverUrl = this.configuration.xivAppServerUrl ?? "";
     if (ImGui.InputText("Server URL", ref serverUrl, 256))
     {
-      this.configuration.xivAppServerUrl = serverUrl;
+      this.configuration.xivAppServerUrl = serverUrl.Trim();
       this.configuration.Save();
+      ReconfigureXivAppClient();
     }
-    
+    if (ImGui.IsItemDeactivatedAfterEdit() && !string.IsNullOrEmpty(this.configuration.xivAppApiKey))
+    {
+      _ = FetchXivAppVenuesAsync();
+    }
+
     // Fetch Venues button
     if (ImGui.Button("Fetch Venues"))
     {
       _ = FetchXivAppVenuesAsync();
+    }
+    if (!string.IsNullOrEmpty(xivAppStatus))
+    {
+      ImGui.TextColored(xivAppStatusColor, xivAppStatus);
     }
     
     // Venue dropdown
@@ -340,17 +375,64 @@ PlaceName: {mapData.PlaceName.Value.Name.ExtractText()}
     if (!this.configuration.syncToXivApp) ImGui.EndDisabled();
   }
   
+  // Lazy-configure the XIV-App client from current Configuration. The client
+  // itself is always non-null (created at Plugin load), so callers don't need
+  // null checks — IsConfigured tells them whether a key+URL are set.
+  private void ReconfigureXivAppClient()
+  {
+    if (plugin.xivAppClient == null) return;
+    if (string.IsNullOrEmpty(this.configuration.xivAppApiKey)) return;
+    try
+    {
+      plugin.xivAppClient.Configure(this.configuration.xivAppApiKey, this.configuration.xivAppServerUrl);
+    }
+    catch (Exception ex)
+    {
+      xivAppStatus = $"Invalid key or URL: {ex.Message}";
+      xivAppStatusColor = StatusErr;
+      Plugin.Log.Error("XIV-App Configure failed: {0}", ex.Message);
+    }
+  }
+
   private async Task FetchXivAppVenuesAsync()
   {
     try {
-      if (plugin.xivAppClient == null || string.IsNullOrEmpty(this.configuration.xivAppApiKey)) {
-        Plugin.Log.Warning("XIV-App not configured");
+      if (plugin.xivAppClient == null)
+      {
+        xivAppStatus = "XIV-App client not initialized — restart the plugin.";
+        xivAppStatusColor = StatusErr;
         return;
       }
-      
+      // Self-heal: if a key was just pasted and ReconfigureXivAppClient hasn't
+      // fired yet (or silently failed), configure again before the request.
+      if (!plugin.xivAppClient.IsConfigured && !string.IsNullOrEmpty(this.configuration.xivAppApiKey))
+      {
+        ReconfigureXivAppClient();
+      }
+      if (!plugin.xivAppClient.IsConfigured)
+      {
+        xivAppStatus = "Enter your API key first (generate one at xivvenuemanager.com).";
+        xivAppStatusColor = StatusWarn;
+        return;
+      }
+
+      xivAppStatus = "Fetching…";
+      xivAppStatusColor = new Vector4(0.7f, 0.7f, 0.7f, 1f);
+
       plugin.xivAppVenues = await plugin.xivAppClient.GetVenuesAsync();
       Plugin.Log.Information("Fetched {Count} venues from XIV-App", plugin.xivAppVenues.Count);
-      
+
+      if (plugin.xivAppVenues.Count == 0)
+      {
+        xivAppStatus = "No venues found for this key — check that the key is scoped to a venue you own or staff.";
+        xivAppStatusColor = StatusWarn;
+      }
+      else
+      {
+        xivAppStatus = $"✓ Fetched {plugin.xivAppVenues.Count} venue(s)";
+        xivAppStatusColor = StatusOk;
+      }
+
       // Auto-select first venue if none selected
       if (string.IsNullOrEmpty(this.configuration.selectedVenueId) && plugin.xivAppVenues.Count > 0) {
         this.configuration.selectedVenueId = plugin.xivAppVenues[0].Id;
@@ -369,15 +451,17 @@ PlaceName: {mapData.PlaceName.Value.Name.ExtractText()}
         await FetchXivAppServicesAsync(this.configuration.selectedVenueId);
       }
     } catch (Exception ex) {
+      xivAppStatus = $"✗ {ex.Message}";
+      xivAppStatusColor = StatusErr;
       Plugin.Log.Error("Failed to fetch venues: {0}", ex.Message);
     }
   }
-  
+
   private async Task FetchXivAppRolesAsync(string venueId)
   {
     try {
-      if (plugin.xivAppClient == null) return;
-      
+      if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
+
       var roles = await plugin.xivAppClient.GetRolesAsync(venueId);
       // Store the result so the Settings indicator (and any future role
       // dropdown) can read it. Previously we logged-and-discarded — that
@@ -392,7 +476,7 @@ PlaceName: {mapData.PlaceName.Value.Name.ExtractText()}
   private async Task FetchXivAppServicesAsync(string venueId)
   {
     try {
-      if (plugin.xivAppClient == null) return;
+      if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
 
       var response = await plugin.xivAppClient.GetServicesAsync(venueId);
       if (response == null)

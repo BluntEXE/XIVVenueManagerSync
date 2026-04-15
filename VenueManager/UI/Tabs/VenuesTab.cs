@@ -109,7 +109,7 @@ public class VenuesTab
 
     ImGui.Spacing();
     ImGui.BeginChild(1);
-    if (ImGui.BeginTable("Venues", 11, ImGuiTableFlags.Sortable))
+    if (ImGui.BeginTable("Venues", 12, ImGuiTableFlags.Sortable))
     {
       ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 20);
       ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 20);
@@ -120,6 +120,7 @@ public class VenuesTab
       ImGui.TableSetupColumn("Room", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 30);
       ImGui.TableSetupColumn("World");
       ImGui.TableSetupColumn("DataCenter");
+      ImGui.TableSetupColumn("XIV-App Venue", ImGuiTableColumnFlags.NoSort, 180);
       ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 20);
       ImGui.TableSetupColumn("Notes");
       ImGui.TableHeadersRow();
@@ -160,6 +161,13 @@ public class VenuesTab
         ImGui.TextColored(fontColor, venue.Value.WorldName);
         ImGui.TableNextColumn();
         ImGui.TextColored(fontColor, venue.Value.DataCenter);
+
+        // XIV-App venue link — maps this in-game house to a venue on the
+        // website so patron visits post to the right place. Requires the
+        // user to have signed in via Settings → XIV-App Sync; otherwise the
+        // dropdown is empty and we show a disabled placeholder.
+        ImGui.TableNextColumn();
+        drawXivAppVenuePicker(venue.Value.houseId);
 
         // Allow the user to delete the saved venue
         ImGui.TableNextColumn();
@@ -202,5 +210,70 @@ public class VenuesTab
       ImGui.EndTable();
     }
     ImGui.EndChild();
+  }
+
+  /// <summary>
+  /// Draws the XIV-App venue dropdown for a single saved house. Selection
+  /// writes straight to <c>Configuration.houseToXivAppVenue[houseId]</c>
+  /// and saves immediately — the next patron arrival at this house will
+  /// pick up the new mapping without a reload.
+  /// </summary>
+  private void drawXivAppVenuePicker(long houseId)
+  {
+    var config = plugin.Configuration;
+    var venues = plugin.xivAppVenues;
+    ImGui.PushItemWidth(-1);
+
+    // Not signed in / venues never fetched → disabled placeholder.
+    if (venues == null || venues.Count == 0)
+    {
+      ImGui.BeginDisabled();
+      string placeholder = string.IsNullOrEmpty(config.xivAppApiKey)
+        ? "(sign in under Settings)"
+        : "(fetch venues first)";
+      ImGui.InputText($"##xivapplink_{houseId}", ref placeholder, 64, ImGuiInputTextFlags.ReadOnly);
+      ImGui.EndDisabled();
+      ImGui.PopItemWidth();
+      return;
+    }
+
+    config.houseToXivAppVenue.TryGetValue(houseId, out var currentId);
+    currentId ??= string.Empty;
+
+    string currentLabel = "— unlinked —";
+    if (!string.IsNullOrEmpty(currentId))
+    {
+      var match = venues.Find(v => v.Id == currentId);
+      currentLabel = match != null ? match.Name : "(missing venue)";
+    }
+
+    if (ImGui.BeginCombo($"##xivapplink_{houseId}", currentLabel))
+    {
+      if (ImGui.Selectable("— unlinked —", string.IsNullOrEmpty(currentId)))
+      {
+        if (config.houseToXivAppVenue.Remove(houseId))
+        {
+          config.Save();
+          plugin.eventPresence.Clear();
+        }
+      }
+      foreach (var v in venues)
+      {
+        bool selected = v.Id == currentId;
+        if (ImGui.Selectable(v.Name + "##opt_" + houseId + "_" + v.Id, selected))
+        {
+          config.houseToXivAppVenue[houseId] = v.Id;
+          config.Save();
+          // Invalidate cached event-presence so the new link picks up the
+          // correct event state on the next arrival instead of inheriting
+          // whatever was cached for the previous mapping.
+          plugin.eventPresence.Clear();
+        }
+        if (selected) ImGui.SetItemDefaultFocus();
+      }
+      ImGui.EndCombo();
+    }
+
+    ImGui.PopItemWidth();
   }
 }
