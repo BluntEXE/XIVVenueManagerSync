@@ -4,6 +4,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Utility;
 using VenueManager.Tabs;
+using VenueManager.UI;
 
 namespace VenueManager.Windows;
 
@@ -25,13 +26,13 @@ public class MainWindow : Window, IDisposable
   // not stomped on subsequent frames.
   private string? pendingTab = null;
 
-  // Strip palette. Mauve / emerald / peach chosen to loosely track the
-  // Catppuccin Mocha vocab the website uses so plugin + site feel like
-  // the same product.
-  private static readonly Vector4 StripSyncOn  = new(0.54f, 0.80f, 0.52f, 1f); // emerald
-  private static readonly Vector4 StripSyncOff = new(0.55f, 0.55f, 0.60f, 1f); // grey
-  private static readonly Vector4 StripMuted   = new(0.70f, 0.70f, 0.75f, 1f);
-  private static readonly Vector4 StripAccent  = new(0.95f, 0.78f, 0.40f, 1f); // peach/gold for gil
+  // Strip palette now reads from Colors.Cat* so plugin + website share one
+  // palette source of truth. Previously these lived as local Vector4s and
+  // drifted vs. identical-intent constants in other tabs.
+  private static Vector4 StripSyncOn  => Colors.CatCatGreen;
+  private static Vector4 StripSyncOff => Colors.CatOverlay0;
+  private static Vector4 StripMuted   => Colors.CatSubtext0;
+  private static Vector4 StripAccent  => Colors.CatPeach; // peach/gold for gil
 
   public MainWindow(Plugin plugin) : base(
       "XIV Venue Manager Sync", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
@@ -83,6 +84,11 @@ public class MainWindow : Window, IDisposable
 
   public override void Draw()
   {
+    // Push Catppuccin Mocha theme for every widget drawn inside this
+    // window. Pop in finally{} so an exception in the tab body can't
+    // leave the ImGui style stack mid-push (which would corrupt the
+    // appearance of every later plugin in the same frame).
+    ThemeManager.Push();
     try
     {
       drawDashboardStrip();
@@ -154,6 +160,10 @@ public class MainWindow : Window, IDisposable
     {
       Plugin.Log.Error("Crash while drawing main window");
       Plugin.Log.Error(e.ToString());
+    }
+    finally
+    {
+      ThemeManager.Pop();
     }
   }
 

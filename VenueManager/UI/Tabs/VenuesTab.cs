@@ -109,20 +109,41 @@ public class VenuesTab
 
     ImGui.Spacing();
     ImGui.BeginChild(1);
-    if (ImGui.BeginTable("Venues", 12, ImGuiTableFlags.Sortable))
+    // Table flags:
+    //   Sortable    — users click headers to sort (existing behaviour).
+    //   Resizable   — users can drag column separators so a cramped
+    //                 Notes field is a one-drag fix. This was the
+    //                 single biggest complaint before the fix.
+    //   ScrollX     — if the window is narrow, a horizontal scrollbar
+    //                 appears instead of columns collapsing to nothing.
+    //                 Requires an explicit outer_size to work; Dalamud's
+    //                 default (0,0) is fine because we're inside a child
+    //                 that already has a scroll region.
+    //   BordersInnerV — thin vertical lines between columns so the
+    //                 draggable separators are visually discoverable.
+    //   RowBg       — alternating row tint pulled from the theme.
+    var tableFlags = ImGuiTableFlags.Sortable
+                   | ImGuiTableFlags.Resizable
+                   | ImGuiTableFlags.ScrollX
+                   | ImGuiTableFlags.BordersInnerV
+                   | ImGuiTableFlags.RowBg;
+    if (ImGui.BeginTable("Venues", 12, tableFlags))
     {
-      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 20);
-      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 20);
-      ImGui.TableSetupColumn("Name");
-      ImGui.TableSetupColumn("District");
-      ImGui.TableSetupColumn("Ward", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 30);
-      ImGui.TableSetupColumn("Plot", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 25);
-      ImGui.TableSetupColumn("Room", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 30);
-      ImGui.TableSetupColumn("World");
-      ImGui.TableSetupColumn("DataCenter");
-      ImGui.TableSetupColumn("XIV-App Venue", ImGuiTableColumnFlags.NoSort, 180);
-      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 20);
-      ImGui.TableSetupColumn("Notes");
+      // Column default widths — WidthStretch shares the remaining space
+      // after fixed columns. We give Notes the widest default because
+      // that's the most common "I can't read this" offender.
+      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 24);
+      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 24);
+      ImGui.TableSetupColumn("Name",       ImGuiTableColumnFlags.WidthStretch, 160);
+      ImGui.TableSetupColumn("District",   ImGuiTableColumnFlags.WidthStretch, 110);
+      ImGui.TableSetupColumn("Ward",       ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 40);
+      ImGui.TableSetupColumn("Plot",       ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 40);
+      ImGui.TableSetupColumn("Room",       ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 40);
+      ImGui.TableSetupColumn("World",      ImGuiTableColumnFlags.WidthStretch, 100);
+      ImGui.TableSetupColumn("DataCenter", ImGuiTableColumnFlags.WidthStretch, 100);
+      ImGui.TableSetupColumn("XIV-App Venue", ImGuiTableColumnFlags.NoSort | ImGuiTableColumnFlags.WidthFixed, 200);
+      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 24);
+      ImGui.TableSetupColumn("Notes",      ImGuiTableColumnFlags.WidthStretch | ImGuiTableColumnFlags.NoSort, 280);
       ImGui.TableHeadersRow();
 
       ImGuiTableSortSpecsPtr sortSpecs = ImGui.TableGetSortSpecs();
@@ -200,6 +221,7 @@ public class VenuesTab
         }
         var notes = venue.Value.notes;
         ImGui.SameLine();
+        ImGui.SetNextItemWidth(-1);
         ImGui.InputTextWithHint($"##notes{venue.Value.name}", "Notes", ref notes, 256);
         if (notes != venue.Value.notes) {
           plugin.venueList.venues[venue.Key].notes = notes;
