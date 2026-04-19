@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 
@@ -5,88 +6,100 @@ namespace VenueManager.UI;
 
 // Catppuccin Mocha theme for every window the plugin opens.
 //
-// Call `ThemeManager.Push()` at the top of a window's Draw() and
-// `ThemeManager.Pop()` in a finally{} block at the bottom. Every child
-// window, tab, combo, button, slider, checkbox, etc. drawn between those
-// two calls inherits the Catppuccin palette.
+// Usage:
+//     using var _ = ThemeManager.Scope();
+//     // draw widgets
 //
-// Why push/pop instead of SetStyleColor? ImGui style is global state. If
-// we mutated the shared style we'd bleed colors into other plugins drawn
-// after ours in the same frame. Scoped Push/Pop leaves the global style
-// untouched.
+// The Scope handle counts the colors/vars it pushed and pops exactly that
+// many on Dispose, so Push/Pop counts can never drift. ImGui's style stack
+// is process-global across every Dalamud plugin in the frame — a leaked
+// push bleeds colors into every later window drawn that frame.
 public static class ThemeManager
 {
-  // Number of colors pushed by Push(). Must match the number of Pop calls.
-  // Kept here so a future edit can't silently desync the two methods.
-  private const int ColorCount = 30;
-  private const int StyleVarCount = 7;
-
-  public static void Push()
+  public static Scoped Scope()
   {
-    // -- Frame radius + spacing ---------------------------------------------
-    // Website uses 6–8px rounded corners and generous padding. ImGui units
-    // are pixels; these match the --radius and --spacing-* tokens roughly.
-    ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 8f);
-    ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 6f);
-    ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 6f);
-    ImGui.PushStyleVar(ImGuiStyleVar.PopupRounding, 6f);
-    ImGui.PushStyleVar(ImGuiStyleVar.GrabRounding, 4f);
-    ImGui.PushStyleVar(ImGuiStyleVar.TabRounding, 6f);
-    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8f, 5f));
+    var handle = new Scoped();
 
-    // -- Backgrounds --------------------------------------------------------
-    ImGui.PushStyleColor(ImGuiCol.WindowBg,   Colors.CatBase);
-    ImGui.PushStyleColor(ImGuiCol.ChildBg,    Colors.CatMantle);
-    ImGui.PushStyleColor(ImGuiCol.PopupBg,    Colors.CatCrust);
-    ImGui.PushStyleColor(ImGuiCol.MenuBarBg,  Colors.CatMantle);
+    handle.PushVar(ImGuiStyleVar.WindowRounding, 8f);
+    handle.PushVar(ImGuiStyleVar.ChildRounding,  6f);
+    handle.PushVar(ImGuiStyleVar.FrameRounding,  6f);
+    handle.PushVar(ImGuiStyleVar.PopupRounding,  6f);
+    handle.PushVar(ImGuiStyleVar.GrabRounding,   4f);
+    handle.PushVar(ImGuiStyleVar.TabRounding,    6f);
+    handle.PushVar(ImGuiStyleVar.FramePadding,   new Vector2(8f, 5f));
 
-    // -- Text ---------------------------------------------------------------
-    ImGui.PushStyleColor(ImGuiCol.Text,         Colors.CatText);
-    ImGui.PushStyleColor(ImGuiCol.TextDisabled, Colors.CatOverlay0);
+    handle.PushColor(ImGuiCol.WindowBg,  Colors.CatBase);
+    handle.PushColor(ImGuiCol.ChildBg,   Colors.CatMantle);
+    handle.PushColor(ImGuiCol.PopupBg,   Colors.CatCrust);
+    handle.PushColor(ImGuiCol.MenuBarBg, Colors.CatMantle);
 
-    // -- Borders + separators ----------------------------------------------
-    ImGui.PushStyleColor(ImGuiCol.Border,         Colors.CatSurface0);
-    ImGui.PushStyleColor(ImGuiCol.Separator,      Colors.CatSurface0);
-    ImGui.PushStyleColor(ImGuiCol.SeparatorHovered, Colors.CatSurface2);
-    ImGui.PushStyleColor(ImGuiCol.SeparatorActive,  Colors.CatBlue);
+    handle.PushColor(ImGuiCol.Text,         Colors.CatText);
+    handle.PushColor(ImGuiCol.TextDisabled, Colors.CatOverlay0);
 
-    // -- Inputs / frames (checkbox, input, combo, slider track) ------------
-    ImGui.PushStyleColor(ImGuiCol.FrameBg,        Colors.CatSurface0);
-    ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, Colors.CatSurface1);
-    ImGui.PushStyleColor(ImGuiCol.FrameBgActive,  Colors.CatSurface2);
+    handle.PushColor(ImGuiCol.Border,          Colors.CatSurface0);
+    handle.PushColor(ImGuiCol.Separator,       Colors.CatSurface0);
+    handle.PushColor(ImGuiCol.SeparatorHovered, Colors.CatSurface2);
+    handle.PushColor(ImGuiCol.SeparatorActive,  Colors.CatBlue);
 
-    // -- Buttons ------------------------------------------------------------
-    ImGui.PushStyleColor(ImGuiCol.Button,        Colors.CatSurface1);
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, Colors.CatSurface2);
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive,  Colors.CatBlue);
+    handle.PushColor(ImGuiCol.FrameBg,        Colors.CatSurface0);
+    handle.PushColor(ImGuiCol.FrameBgHovered, Colors.CatSurface1);
+    handle.PushColor(ImGuiCol.FrameBgActive,  Colors.CatSurface2);
 
-    // -- Headers (collapsing header, selected row, combo item) -------------
-    ImGui.PushStyleColor(ImGuiCol.Header,        Colors.CatSurface1);
-    ImGui.PushStyleColor(ImGuiCol.HeaderHovered, Colors.CatSurface2);
-    ImGui.PushStyleColor(ImGuiCol.HeaderActive,  Colors.CatBlue);
+    handle.PushColor(ImGuiCol.Button,        Colors.CatSurface1);
+    handle.PushColor(ImGuiCol.ButtonHovered, Colors.CatSurface2);
+    handle.PushColor(ImGuiCol.ButtonActive,  Colors.CatBlue);
 
-    // -- Tabs ---------------------------------------------------------------
-    ImGui.PushStyleColor(ImGuiCol.Tab,                Colors.CatMantle);
-    ImGui.PushStyleColor(ImGuiCol.TabHovered,         Colors.CatSurface1);
-    ImGui.PushStyleColor(ImGuiCol.TabActive,          Colors.CatSurface0);
-    ImGui.PushStyleColor(ImGuiCol.TabUnfocused,       Colors.CatMantle);
-    ImGui.PushStyleColor(ImGuiCol.TabUnfocusedActive, Colors.CatSurface0);
+    handle.PushColor(ImGuiCol.Header,        Colors.CatSurface1);
+    handle.PushColor(ImGuiCol.HeaderHovered, Colors.CatSurface2);
+    handle.PushColor(ImGuiCol.HeaderActive,  Colors.CatBlue);
 
-    // -- Check mark + slider grab ------------------------------------------
-    ImGui.PushStyleColor(ImGuiCol.CheckMark,        Colors.CatBlue);
-    ImGui.PushStyleColor(ImGuiCol.SliderGrab,       Colors.CatBlue);
-    ImGui.PushStyleColor(ImGuiCol.SliderGrabActive, Colors.CatLavender);
+    handle.PushColor(ImGuiCol.Tab,                Colors.CatMantle);
+    handle.PushColor(ImGuiCol.TabHovered,         Colors.CatSurface1);
+    handle.PushColor(ImGuiCol.TabActive,          Colors.CatSurface0);
+    handle.PushColor(ImGuiCol.TabUnfocused,       Colors.CatMantle);
+    handle.PushColor(ImGuiCol.TabUnfocusedActive, Colors.CatSurface0);
 
-    // -- Scrollbar ----------------------------------------------------------
-    ImGui.PushStyleColor(ImGuiCol.ScrollbarBg,          Colors.CatMantle);
-    ImGui.PushStyleColor(ImGuiCol.ScrollbarGrab,        Colors.CatSurface1);
-    ImGui.PushStyleColor(ImGuiCol.ScrollbarGrabHovered, Colors.CatSurface2);
-    ImGui.PushStyleColor(ImGuiCol.ScrollbarGrabActive,  Colors.CatOverlay0);
+    handle.PushColor(ImGuiCol.CheckMark,        Colors.CatBlue);
+    handle.PushColor(ImGuiCol.SliderGrab,       Colors.CatBlue);
+    handle.PushColor(ImGuiCol.SliderGrabActive, Colors.CatLavender);
+
+    handle.PushColor(ImGuiCol.ScrollbarBg,          Colors.CatMantle);
+    handle.PushColor(ImGuiCol.ScrollbarGrab,        Colors.CatSurface1);
+    handle.PushColor(ImGuiCol.ScrollbarGrabHovered, Colors.CatSurface2);
+    handle.PushColor(ImGuiCol.ScrollbarGrabActive,  Colors.CatOverlay0);
+
+    return handle;
   }
 
-  public static void Pop()
+  public struct Scoped : IDisposable
   {
-    ImGui.PopStyleColor(ColorCount);
-    ImGui.PopStyleVar(StyleVarCount);
+    private int colors;
+    private int vars;
+
+    internal void PushColor(ImGuiCol idx, Vector4 color)
+    {
+      ImGui.PushStyleColor(idx, color);
+      colors++;
+    }
+
+    internal void PushVar(ImGuiStyleVar idx, float value)
+    {
+      ImGui.PushStyleVar(idx, value);
+      vars++;
+    }
+
+    internal void PushVar(ImGuiStyleVar idx, Vector2 value)
+    {
+      ImGui.PushStyleVar(idx, value);
+      vars++;
+    }
+
+    public void Dispose()
+    {
+      if (colors > 0) ImGui.PopStyleColor(colors);
+      if (vars > 0)   ImGui.PopStyleVar(vars);
+      colors = 0;
+      vars = 0;
+    }
   }
 }

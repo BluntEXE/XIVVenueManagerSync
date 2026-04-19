@@ -4,7 +4,7 @@
     <TargetFramework>net10.0-windows7.0</TargetFramework>
     <Authors>Ehno</Authors>
     <Company></Company>
-    <Version>3.3.0</Version>
+    <Version>3.3.1</Version>
     <AssemblyName>XIVVenueManagerSync</AssemblyName>
     <Description>In-game companion for xivvenuemanager.com — log patron visits, sales, and services without leaving FFXIV.</Description>
     <Copyright>Copyright (c) Ehno</Copyright>

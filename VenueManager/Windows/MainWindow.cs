@@ -84,11 +84,11 @@ public class MainWindow : Window, IDisposable
 
   public override void Draw()
   {
-    // Push Catppuccin Mocha theme for every widget drawn inside this
-    // window. Pop in finally{} so an exception in the tab body can't
-    // leave the ImGui style stack mid-push (which would corrupt the
-    // appearance of every later plugin in the same frame).
-    ThemeManager.Push();
+    // Scoped Catppuccin Mocha theme. `using var` guarantees Dispose()
+    // pops every color/var we pushed, even on exception — ImGui's style
+    // stack is process-global across Dalamud plugins, so a leaked push
+    // corrupts every later window drawn this frame.
+    using var theme = ThemeManager.Scope();
     try
     {
       drawDashboardStrip();
@@ -160,10 +160,6 @@ public class MainWindow : Window, IDisposable
     {
       Plugin.Log.Error("Crash while drawing main window");
       Plugin.Log.Error(e.ToString());
-    }
-    finally
-    {
-      ThemeManager.Pop();
     }
   }
 
