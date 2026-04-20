@@ -167,6 +167,7 @@ public class SettingsTab
     DtrDisplayMode.PatronCount  => "Patron count",
     DtrDisplayMode.VenueName    => "Venue name",
     DtrDisplayMode.SessionSales => "Session sales",
+    DtrDisplayMode.ShiftStatus  => "Shift status",
     DtrDisplayMode.Combined     => "Combined",
     _ => mode.ToString(),
   };
@@ -177,7 +178,8 @@ public class SettingsTab
     DtrDisplayMode.PatronCount  => "Patron count while inside a venue, e.g. \"VM: 12 patrons\".",
     DtrDisplayMode.VenueName    => "Name of the current venue (falls back to ward/plot if unlinked).",
     DtrDisplayMode.SessionSales => "Running tally of sales logged this session.",
-    DtrDisplayMode.Combined     => "Patrons • venue • sales • snooze — whichever apply right now.",
+    DtrDisplayMode.ShiftStatus  => "Clock-in status: \"On shift 1h23m\", \"Shift in 45m\", or \"Off shift\".",
+    DtrDisplayMode.Combined     => "Shift • patrons • venue • sales • snooze — whichever apply right now.",
     _ => "",
   };
 

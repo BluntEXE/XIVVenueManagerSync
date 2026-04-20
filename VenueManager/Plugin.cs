@@ -60,6 +60,16 @@ namespace VenueManager
     private IDtrBarEntry? dtrEntry;
     private long dtrLastUpdateMs = 0;
 
+    // Active shift cache. Populated by a background poll every 30s so the
+    // DTR can surface clock-in status even when the user never opens the
+    // Shifts tab. Null = no active shift, or we haven't polled yet / the
+    // API call failed. ShiftsTab still polls independently for its own UI
+    // — the two polls aren't coordinated, but 30s is cheap and the caches
+    // converge within a tick of each other.
+    public ShiftDto? activeShift = null;
+    private long lastShiftPollMs = 0;
+    private bool shiftPollInFlight = false;
+
     // XIV-App API Client. Public so UI tabs (SettingsTab, SalesTab, ...)
     // can access it directly — the plugin has no cross-assembly boundary
     // concerns, and every tab that needs to hit the server needs the
@@ -578,6 +588,11 @@ namespace VenueManager
       if (!dtrEntry.Shown) return;
 
       var nowMs = Environment.TickCount64;
+      // Kick the shift poller on the same tick as the DTR refresh. Cheap —
+      // fires at most once every 30s and skips itself if a call is in flight.
+      if (mode == DtrDisplayMode.ShiftStatus || mode == DtrDisplayMode.Combined)
+        PollActiveShiftAsync();
+
       if (!force && nowMs - dtrLastUpdateMs < 2000) return;
       dtrLastUpdateMs = nowMs;
 
@@ -597,8 +612,13 @@ namespace VenueManager
             ? $"VM: {SessionSalesCount} sales / {SessionSalesTotal:N0}g"
             : "VM: no sales yet";
           break;
+        case DtrDisplayMode.ShiftStatus:
+          text = BuildShiftLabel();
+          break;
         case DtrDisplayMode.Combined:
           var parts = new List<string>();
+          var shift = BuildShiftLabel(prefix: false, compact: true);
+          if (!string.IsNullOrEmpty(shift)) parts.Add(shift);
           if (pluginState.userInHouse) parts.Add($"{pluginState.playersInHouse}p");
           var venue = BuildVenueLabel(prefix: false);
           if (!string.IsNullOrEmpty(venue) && venue != "Outside") parts.Add(venue);
@@ -633,6 +653,102 @@ namespace VenueManager
 
       var h = pluginState.currentHouse;
       return p + $"W{h.ward} P{h.plot}";
+    }
+
+    // Renders the current shift state as DTR text. Handles three shapes:
+    //   ACTIVE       → "On shift 1h23m" (elapsed since actualStart)
+    //   SCHEDULED    → "Shift in 45m" (time until scheduledStart), only when
+    //                  within the next 2 hours — otherwise not worth surfacing
+    //   none of above → "Off shift" (prefix mode) or "" (compact mode)
+    // `compact` mode is used by Combined so we can drop empty/off-shift
+    // entries from the joined string instead of padding them in.
+    private string BuildShiftLabel(bool prefix = true, bool compact = false)
+    {
+      var p = prefix ? "VM: " : "";
+      var s = activeShift;
+
+      if (s != null && s.Status == "ACTIVE" && !string.IsNullOrEmpty(s.ActualStart))
+      {
+        if (DateTime.TryParse(s.ActualStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var started))
+        {
+          var elapsed = DateTime.UtcNow - started.ToUniversalTime();
+          if (elapsed.TotalSeconds < 0) elapsed = TimeSpan.Zero;
+          return p + "On shift " + FormatDuration(elapsed);
+        }
+        return p + "On shift";
+      }
+
+      if (s != null && s.Status == "SCHEDULED" && !string.IsNullOrEmpty(s.ScheduledStart))
+      {
+        if (DateTime.TryParse(s.ScheduledStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var startsAt))
+        {
+          var delta = startsAt.ToUniversalTime() - DateTime.UtcNow;
+          if (delta.TotalMinutes > 0 && delta.TotalHours <= 2)
+            return p + "Shift in " + FormatDuration(delta);
+        }
+      }
+
+      return compact ? "" : p + "Off shift";
+    }
+
+    private static string FormatDuration(TimeSpan t)
+    {
+      if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h{t.Minutes:D2}m";
+      if (t.TotalMinutes >= 1) return $"{(int)t.TotalMinutes}m";
+      return $"{(int)t.TotalSeconds}s";
+    }
+
+    // Lazy shift poller. Runs at most once per 30s, skips if a previous
+    // call is still in flight, no-ops when the API client or venue isn't
+    // configured. Picks "the most relevant" shift for DTR purposes:
+    //   1. any ACTIVE shift wins (user is clocked in right now)
+    //   2. otherwise the earliest SCHEDULED shift starting in the future
+    //   3. otherwise null (clears the cache)
+    // Errors are swallowed silently — the DTR fallback is "Off shift"
+    // which is a truthful display when we can't reach the server.
+    private void PollActiveShiftAsync()
+    {
+      if (shiftPollInFlight) return;
+      var nowMs = Environment.TickCount64;
+      if (nowMs - lastShiftPollMs < 30_000) return;
+      if (xivAppClient == null || !xivAppClient.IsConfigured) return;
+      if (string.IsNullOrEmpty(currentXivAppVenueId)) return;
+
+      lastShiftPollMs = nowMs;
+      shiftPollInFlight = true;
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          var list = await xivAppClient.GetMyShiftsAsync(currentXivAppVenueId);
+          ShiftDto? pick = null;
+          foreach (var s in list)
+          {
+            if (s.Status == "ACTIVE") { pick = s; break; }
+          }
+          if (pick == null)
+          {
+            DateTime? bestStart = null;
+            foreach (var s in list)
+            {
+              if (s.Status != "SCHEDULED" || string.IsNullOrEmpty(s.ScheduledStart)) continue;
+              if (!DateTime.TryParse(s.ScheduledStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt)) continue;
+              var utc = dt.ToUniversalTime();
+              if (utc < DateTime.UtcNow) continue;
+              if (bestStart == null || utc < bestStart.Value) { bestStart = utc; pick = s; }
+            }
+          }
+          activeShift = pick;
+        }
+        catch (Exception ex)
+        {
+          Log.Warning($"DTR shift poll failed: {ex.Message}");
+        }
+        finally
+        {
+          shiftPollInFlight = false;
+        }
+      });
     }
 
     private unsafe void OnFrameworkUpdate(IFramework framework)

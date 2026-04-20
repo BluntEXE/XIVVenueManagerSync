@@ -11,6 +11,7 @@ namespace VenueManager
     PatronCount,
     VenueName,
     SessionSales,
+    ShiftStatus,
     Combined,
   }
 

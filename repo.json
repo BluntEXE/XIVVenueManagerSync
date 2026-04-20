@@ -5,13 +5,13 @@
      "Punchline": "In-game companion for xivvenuemanager.com — log patron visits, sales, and services without leaving FFXIV.",
      "Description": "In-game companion for XIV Venue Manager, a venue-management platform for FFXIV player-run venues (xivvenuemanager.com). Tracks patron entry and exit at your venue, logs sales and services to your web dashboard in real time, and keeps guest lists in sync with the staff, roles, and services you configure on the website. Set up an account at xivvenuemanager.com, generate an API key from the dashboard, and paste it into this plugin's Settings tab to start syncing.",
      "InternalName": "XIVVenueManagerSync",
-     "AssemblyVersion": "3.4.0",
+     "AssemblyVersion": "3.4.1",
      "RepoUrl": "https://github.com/BluntEXE/XIVVenueManagerSync",
      "ApplicableVersion": "any",
      "Tags": ["venue", "venues", "events", "sales", "roleplay", "rp", "club", "patrons", "staff"],
      "IconUrl": "https://raw.githubusercontent.com/BluntEXE/XIVVenueManagerSync/master/images/icon.png",
-     "DownloadLinkInstall": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.4.0/XIVVenueManagerSync.zip",
-     "DownloadLinkUpdate": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.4.0/XIVVenueManagerSync.zip",
-     "DownloadLinkTesting": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.4.0/XIVVenueManagerSync.zip"
+     "DownloadLinkInstall": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.4.1/XIVVenueManagerSync.zip",
+     "DownloadLinkUpdate": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.4.1/XIVVenueManagerSync.zip",
+     "DownloadLinkTesting": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.4.1/XIVVenueManagerSync.zip"
     }
    ]
