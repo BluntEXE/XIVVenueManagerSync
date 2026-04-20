@@ -3,6 +3,7 @@ using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
+using Dalamud.Game.Gui.Dtr;
 using VenueManager.Windows;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Text.SeStringHandling;
@@ -38,6 +39,7 @@ namespace VenueManager
     [PluginService] public static IChatGui Chat { get; private set; } = null!;
     [PluginService] public static ITargetManager TargetManager { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
+    [PluginService] public static IDtrBar DtrBar { get; private set; } = null!;
 
     public Configuration Configuration { get; init; }
     public PluginState pluginState { get; init; }
@@ -51,6 +53,12 @@ namespace VenueManager
 
     private Stopwatch stopwatch = new();
     private DoorbellSound doorbell;
+
+    // Server Info Bar entry. Created once in ctor, text refreshed from the
+    // framework-update tick (throttled to ~2s — DTR is at-a-glance, no need
+    // to allocate a new SeString every frame). Disposed on unload via Remove().
+    private IDtrBarEntry? dtrEntry;
+    private long dtrLastUpdateMs = 0;
 
     // XIV-App API Client. Public so UI tabs (SettingsTab, SalesTab, ...)
     // can access it directly — the plugin has no cross-assembly boundary
@@ -155,6 +163,22 @@ namespace VenueManager
       CommandManager.AddHandler(CommandNameAlias + " start",   StartHelp);
       CommandManager.AddHandler(CommandNameAlias + " end",     EndHelp);
 
+      // DTR bar entry. Always created — visibility is driven by the
+      // display-mode config, not by Get/Remove churn. Clicking opens the
+      // main window, matching what users expect from a plugin tray.
+      try
+      {
+        dtrEntry = DtrBar.Get("XIV Venue Manager");
+        dtrEntry.OnClick = _ => MainWindow.Toggle();
+        dtrEntry.Tooltip = "XIV Venue Manager — click to open";
+        dtrEntry.Shown = Configuration.dtrDisplayMode != DtrDisplayMode.Disabled;
+        UpdateDtrBar(force: true);
+      }
+      catch (Exception ex)
+      {
+        Log.Warning($"Failed to register DTR entry: {ex.Message}");
+      }
+
       PluginInterface.UiBuilder.Draw += DrawUI;
 
       // Bind territory changed listener to client 
@@ -184,8 +208,12 @@ namespace VenueManager
       // Remove territory change listener 
       ClientState.TerritoryChanged -= OnTerritoryChanged;
 
-      // Dispose our sound file 
+      // Dispose our sound file
       doorbell.disposeFile();
+
+      // Remove DTR entry so the strip doesn't keep a stale slot after unload.
+      try { dtrEntry?.Remove(); } catch { /* Dalamud already tore it down */ }
+      dtrEntry = null;
 
       this.WindowSystem.RemoveAllWindows();
 
@@ -532,6 +560,79 @@ namespace VenueManager
       stopwatch.Stop();
       // Unsnooze if leaving a house when snoozed
       if (pluginState.snoozed) OnSnooze();
+      // Refresh DTR immediately so "Outside" replaces the venue name without
+      // waiting for the 2s throttle.
+      UpdateDtrBar(force: true);
+    }
+
+    // Refreshes the Server Info Bar entry text. Called every framework tick,
+    // but the body throttles to ~2s so we don't re-allocate an SeString 60×/s
+    // for a strip the player only glances at. Call with force=true to push
+    // an immediate update on state transitions (mode change, entering/leaving
+    // a house) so the UI feels responsive instead of lagged.
+    public void UpdateDtrBar(bool force = false)
+    {
+      if (dtrEntry == null) return;
+      var mode = Configuration.dtrDisplayMode;
+      dtrEntry.Shown = mode != DtrDisplayMode.Disabled;
+      if (!dtrEntry.Shown) return;
+
+      var nowMs = Environment.TickCount64;
+      if (!force && nowMs - dtrLastUpdateMs < 2000) return;
+      dtrLastUpdateMs = nowMs;
+
+      string text;
+      switch (mode)
+      {
+        case DtrDisplayMode.PatronCount:
+          text = pluginState.userInHouse
+            ? $"VM: {pluginState.playersInHouse} patrons"
+            : "VM: —";
+          break;
+        case DtrDisplayMode.VenueName:
+          text = BuildVenueLabel();
+          break;
+        case DtrDisplayMode.SessionSales:
+          text = SessionSalesCount > 0
+            ? $"VM: {SessionSalesCount} sales / {SessionSalesTotal:N0}g"
+            : "VM: no sales yet";
+          break;
+        case DtrDisplayMode.Combined:
+          var parts = new List<string>();
+          if (pluginState.userInHouse) parts.Add($"{pluginState.playersInHouse}p");
+          var venue = BuildVenueLabel(prefix: false);
+          if (!string.IsNullOrEmpty(venue) && venue != "Outside") parts.Add(venue);
+          if (SessionSalesCount > 0) parts.Add($"{SessionSalesCount}s/{SessionSalesTotal:N0}g");
+          if (pluginState.snoozed) parts.Add("zzz");
+          text = parts.Count > 0 ? "VM: " + string.Join(" • ", parts) : "VM: idle";
+          break;
+        default:
+          text = "VM";
+          break;
+      }
+      dtrEntry.Text = text;
+    }
+
+    // Resolves the current venue's display name: xiv-app linked name first
+    // (nice branding like "Rose Garden"), falling back to the raw
+    // ward/plot tag (functional but dry). Returns "Outside" when the player
+    // is not in a house.
+    private string BuildVenueLabel(bool prefix = true)
+    {
+      var p = prefix ? "VM: " : "";
+      if (!pluginState.userInHouse) return p + "Outside";
+
+      var houseId = pluginState.currentHouse.houseId;
+      if (houseId != 0 && Configuration.houseToXivAppVenue.TryGetValue(houseId, out var vid))
+      {
+        var v = xivAppVenues.Find(x => x.Id == vid);
+        if (v != null && !string.IsNullOrEmpty(v.Name)) return p + v.Name;
+      }
+      if (venueList.venues.TryGetValue(houseId, out var local) && !string.IsNullOrEmpty(local.name))
+        return p + local.name;
+
+      var h = pluginState.currentHouse;
+      return p + $"W{h.ward} P{h.plot}";
     }
 
     private unsafe void OnFrameworkUpdate(IFramework framework)
@@ -543,6 +644,8 @@ namespace VenueManager
       running = true;
       try
       {
+        UpdateDtrBar();
+
         // Every second we are in a house. Process players and see what has changed
         if (pluginState.userInHouse && stopwatch.ElapsedMilliseconds > 1000)
         {

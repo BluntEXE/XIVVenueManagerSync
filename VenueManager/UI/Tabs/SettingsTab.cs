@@ -61,6 +61,10 @@ public class SettingsTab
     DrawXivAppSettings();
 
     DrawSectionSeparator();
+    DrawSectionHeader("Status Bar (DTR)");
+    DrawDtrSettings();
+
+    DrawSectionSeparator();
     DrawSectionHeader("Tab Visibility");
     DrawTabVisibility();
 
@@ -127,6 +131,55 @@ public class SettingsTab
       ImGui.TextColored(Colors.StripMuted, "Both tabs hidden — re-enable at least one to see patron data.");
     }
   }
+
+  // -- Status Bar (DTR) -----------------------------------------------------
+  //
+  // Lets users pick what (if anything) the plugin surfaces in the game's
+  // world/time strip. Dalamud already handles show/hide + reordering via
+  // /xlsettings → Server Info Bar, so we only own the *content*.
+  private void DrawDtrSettings()
+  {
+    ImGui.TextWrapped("Show a short plugin status in the game's Server Info Bar (where world/time displays). Reorder or hide via Dalamud settings → Server Info Bar.");
+
+    var mode = this.configuration.dtrDisplayMode;
+    if (ImGui.BeginCombo("Display##dtrMode", DtrLabel(mode)))
+    {
+      foreach (var option in (DtrDisplayMode[])Enum.GetValues(typeof(DtrDisplayMode)))
+      {
+        var selected = option == mode;
+        if (ImGui.Selectable(DtrLabel(option), selected))
+        {
+          this.configuration.dtrDisplayMode = option;
+          this.configuration.Save();
+          this.plugin.UpdateDtrBar(force: true);
+        }
+        if (selected) ImGui.SetItemDefaultFocus();
+      }
+      ImGui.EndCombo();
+    }
+
+    ImGui.TextColored(Colors.StripMuted, DtrDescription(mode));
+  }
+
+  private static string DtrLabel(DtrDisplayMode mode) => mode switch
+  {
+    DtrDisplayMode.Disabled     => "Disabled",
+    DtrDisplayMode.PatronCount  => "Patron count",
+    DtrDisplayMode.VenueName    => "Venue name",
+    DtrDisplayMode.SessionSales => "Session sales",
+    DtrDisplayMode.Combined     => "Combined",
+    _ => mode.ToString(),
+  };
+
+  private static string DtrDescription(DtrDisplayMode mode) => mode switch
+  {
+    DtrDisplayMode.Disabled     => "Nothing shown in the Server Info Bar.",
+    DtrDisplayMode.PatronCount  => "Patron count while inside a venue, e.g. \"VM: 12 patrons\".",
+    DtrDisplayMode.VenueName    => "Name of the current venue (falls back to ward/plot if unlinked).",
+    DtrDisplayMode.SessionSales => "Running tally of sales logged this session.",
+    DtrDisplayMode.Combined     => "Patrons • venue • sales • snooze — whichever apply right now.",
+    _ => "",
+  };
 
   // -- Patron List ----------------------------------------------------------
 

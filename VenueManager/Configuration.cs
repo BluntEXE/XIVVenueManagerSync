@@ -5,6 +5,15 @@ using System.Collections.Generic;
 
 namespace VenueManager
 {
+  public enum DtrDisplayMode
+  {
+    Disabled,
+    PatronCount,
+    VenueName,
+    SessionSales,
+    Combined,
+  }
+
   [Serializable]
   public class Configuration : IPluginConfiguration
   {
@@ -40,6 +49,13 @@ namespace VenueManager
     // Maps in-game HouseId → xiv-app venueId so patron visits log to the
     // right venue automatically. Populated from the VenuesTab linking UI.
     public Dictionary<long, string> houseToXivAppVenue { get; set; } = new();
+
+    // Server Info Bar (DTR) display. Surfaces at-a-glance plugin state in
+    // the game's world/time strip so users don't need the main window open
+    // to see patron count / venue / session sales. User picks the mode
+    // from the Settings tab; disabled by default so new installs don't
+    // add uninvited UI to a crowded DTR bar.
+    public DtrDisplayMode dtrDisplayMode { get; set; } = DtrDisplayMode.Disabled;
 
     // When true (default), patron visits only sync during an active event
     // at the linked venue. Non-event visits are still tracked locally in
