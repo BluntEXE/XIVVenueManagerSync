@@ -14,6 +14,7 @@ using FFXIVClientStructs.FFXIV.Client.Game;
 using System.Collections.Generic;
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using VenueManager.UI;
 using Dalamud.Game.ClientState.Objects.Enums;
@@ -108,6 +109,46 @@ namespace VenueManager
       return baseUrl + path;
     }
 
+    // Startup hydration of XIV-App data so the user doesn't have to click
+    // Fetch Venues every game launch. Called fire-and-forget from OnInit
+    // after the API client has been Configure()'d. All failures are
+    // logged-and-swallowed: empty lists are the safe fallback and the
+    // manual Settings tab button remains as a retry path.
+    public async Task AutoLoadXivAppDataAsync()
+    {
+      if (xivAppClient == null || !xivAppClient.IsConfigured) return;
+      try
+      {
+        xivAppVenues = await xivAppClient.GetVenuesAsync();
+        Log.Information("Auto-loaded {Count} venue(s) on startup", xivAppVenues.Count);
+        if (xivAppVenues.Count == 0) return;
+
+        // Pick the previously-selected venue if it still exists, otherwise
+        // the first one. Mirrors the manual button's selection logic so
+        // startup state matches "user-just-clicked-Fetch" state.
+        var preferred = xivAppVenues.FirstOrDefault(v => v.Id == Configuration.selectedVenueId);
+        var target = preferred ?? xivAppVenues[0];
+        currentXivAppVenueId = target.Id;
+        if (preferred == null)
+        {
+          Configuration.selectedVenueId = target.Id;
+          Configuration.Save();
+        }
+
+        var roles = await xivAppClient.GetRolesAsync(target.Id);
+        xivAppRoles = roles;
+        Log.Information("Auto-loaded {Count} role(s) for venue {VenueId}", roles.Count, target.Id);
+
+        var servicesResp = await xivAppClient.GetServicesAsync(target.Id);
+        availableServices = servicesResp?.Services ?? new List<Service>();
+        Log.Information("Auto-loaded {Count} service(s) for venue {VenueId}", availableServices.Count, target.Id);
+      }
+      catch (Exception ex)
+      {
+        Log.Warning("XIV-App auto-load failed (manual Fetch Venues button still available): {0}", ex.Message);
+      }
+    }
+
     // Cached version string pulled from the loaded assembly. Plugin.cs,
     // XIVVenueManagerSync.json and repo.json are kept in lockstep by the
     // build + ship ritual, so reading from the running assembly means the
@@ -142,6 +183,13 @@ namespace VenueManager
       {
           xivAppClient.Configure(Configuration.xivAppApiKey, Configuration.xivAppServerUrl);
           Log.Information("XIV-App API Client configured with server: {0}", Configuration.xivAppServerUrl);
+
+          // Auto-load venues + roles + services on startup so the user
+          // doesn't have to click Fetch Venues every time. Fire-and-forget:
+          // a server outage at launch must not block plugin init. The UI
+          // Settings tab still renders cleanly with empty lists in the
+          // worst case, and the manual button remains as a retry path.
+          _ = AutoLoadXivAppDataAsync();
       }
 
       MainWindow = new MainWindow(this);
