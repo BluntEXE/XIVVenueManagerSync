@@ -570,10 +570,10 @@ namespace VenueManager
     public void ToggleConfigUI() => MainWindow.Toggle();
     public void ToggleMainUI() => MainWindow.Toggle();
 
-    private unsafe void OnTerritoryChanged(ushort territory)
+    private unsafe void OnTerritoryChanged(uint territory)
     {
       // Save current user territory
-      pluginState.territory = territory;
+      pluginState.territory = (ushort)territory;
 
       bool inHouse = false;
       try
