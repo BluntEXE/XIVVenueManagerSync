@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using VenueManager.UI;
 using Dalamud.Game.ClientState.Objects.Enums;
@@ -67,9 +68,13 @@ namespace VenueManager
     // API call failed. ShiftsTab still polls independently for its own UI
     // — the two polls aren't coordinated, but 30s is cheap and the caches
     // converge within a tick of each other.
-    public ShiftDto? activeShift = null;
+    public volatile ShiftDto? activeShift = null;
     private long lastShiftPollMs = 0;
-    private bool shiftPollInFlight = false;
+    private volatile bool shiftPollInFlight = false;
+    // Mutex for all clock-in/clock-out operations regardless of which path
+    // triggers them (chat command vs UI button). WaitAsync(0) = non-blocking
+    // try-acquire so neither path ever blocks the caller's thread.
+    public readonly SemaphoreSlim clockSem = new SemaphoreSlim(1, 1);
 
     // XIV-App API Client. Public so UI tabs (SettingsTab, SalesTab, ...)
     // can access it directly — the plugin has no cross-assembly boundary
@@ -478,6 +483,11 @@ namespace VenueManager
         return;
       }
 
+      if (!await clockSem.WaitAsync(0))
+      {
+        Chat.Print(prefix + "A clock action is already in progress.");
+        return;
+      }
       try
       {
         var shifts = await xivAppClient.GetMyShiftsAsync(currentXivAppVenueId);
@@ -491,7 +501,10 @@ namespace VenueManager
 
         var result = await xivAppClient.ClockInAsync(scheduled.Id);
         if (result.Success)
+        {
           Chat.Print(prefix + "Clocked in. Shift is now active.");
+          lastShiftPollMs = 0;
+        }
         else
           Chat.Print(prefix + $"Clock-in failed: {result.Error ?? "unknown error"}");
       }
@@ -499,6 +512,10 @@ namespace VenueManager
       {
         Log.Error($"ShiftClockInSilentAsync exception: {ex}");
         Chat.Print(prefix + $"Clock-in error: {ex.Message}");
+      }
+      finally
+      {
+        clockSem.Release();
       }
     }
 
@@ -519,6 +536,11 @@ namespace VenueManager
         return;
       }
 
+      if (!await clockSem.WaitAsync(0))
+      {
+        Chat.Print(prefix + "A clock action is already in progress.");
+        return;
+      }
       try
       {
         var shifts = await xivAppClient.GetMyShiftsAsync(currentXivAppVenueId);
@@ -537,6 +559,7 @@ namespace VenueManager
             ? $" ({result.HoursWorked.Value:F1}h worked)"
             : "";
           Chat.Print(prefix + $"Clocked out.{hoursMsg}");
+          lastShiftPollMs = 0;
         }
         else
           Chat.Print(prefix + $"Clock-out failed: {result.Error ?? "unknown error"}");
@@ -546,7 +569,17 @@ namespace VenueManager
         Log.Error($"ShiftClockOutSilentAsync exception: {ex}");
         Chat.Print(prefix + $"Clock-out error: {ex.Message}");
       }
+      finally
+      {
+        clockSem.Release();
+      }
     }
+
+    // Expires the DTR shift-poll cooldown so the next framework tick
+    // triggers a fresh GetMyShiftsAsync. Called after any successful clock
+    // action so the DTR label reflects the new state within one frame
+    // rather than waiting up to 30s for the normal interval to expire.
+    public void InvalidateShiftPollCache() => lastShiftPollMs = 0;
 
     private void DrawUI()
     {

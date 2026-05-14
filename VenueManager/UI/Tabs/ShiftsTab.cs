@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 
@@ -242,6 +243,12 @@ public class ShiftsTab
   private async Task ClockInAsync(string shiftId)
   {
     if (plugin.xivAppClient == null) return;
+    if (!await plugin.clockSem.WaitAsync(0))
+    {
+      statusMessage = "A clock action is already in progress.";
+      statusIsError = true;
+      return;
+    }
     clocking = true;
     statusMessage = "Clocking in...";
     statusIsError = false;
@@ -253,7 +260,8 @@ public class ShiftsTab
       {
         statusMessage = "Clocked in!";
         statusIsError = false;
-        _ = FetchShiftsAsync(); // refresh list
+        plugin.InvalidateShiftPollCache();
+        _ = FetchShiftsAsync();
       }
       else
       {
@@ -269,12 +277,19 @@ public class ShiftsTab
     finally
     {
       clocking = false;
+      plugin.clockSem.Release();
     }
   }
 
   private async Task ClockOutAsync(string shiftId)
   {
     if (plugin.xivAppClient == null) return;
+    if (!await plugin.clockSem.WaitAsync(0))
+    {
+      statusMessage = "A clock action is already in progress.";
+      statusIsError = true;
+      return;
+    }
     clocking = true;
     statusMessage = "Clocking out...";
     statusIsError = false;
@@ -289,6 +304,7 @@ public class ShiftsTab
           : "";
         statusMessage = $"Clocked out!{hours}";
         statusIsError = false;
+        plugin.InvalidateShiftPollCache();
         _ = FetchShiftsAsync();
       }
       else
@@ -305,6 +321,7 @@ public class ShiftsTab
     finally
     {
       clocking = false;
+      plugin.clockSem.Release();
     }
   }
 }
