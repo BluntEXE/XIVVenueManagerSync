@@ -6,9 +6,10 @@ using NAudio.Wave;
 namespace VenueManager
 {
   public enum DOORBELL_TYPE {
-    DOORBELL = 0, 
+    DOORBELL = 0,
     RECEPTION_BELL,
-    RECEPTION_BELL_SINGLE
+    RECEPTION_BELL_SINGLE,
+    SATO
   };
 
   
@@ -17,7 +18,8 @@ namespace VenueManager
     public static readonly string[] DoorbellSoundTypes = {
       "Standard Doorbell",
       "Reception Bell Double",
-      "Reception Bell Single"
+      "Reception Bell Single",
+      "Sato"
     };
     
     private string file = "";
@@ -35,6 +37,7 @@ namespace VenueManager
       if (type == DOORBELL_TYPE.DOORBELL) file = "doorbell_home.wav";
       if (type == DOORBELL_TYPE.RECEPTION_BELL) file = "reception_bell.wav";
       if (type == DOORBELL_TYPE.RECEPTION_BELL_SINGLE) file = "reception_bell_single.wav";
+      if (type == DOORBELL_TYPE.SATO) file = "sato.wav";
     }
 
     public void load() {
