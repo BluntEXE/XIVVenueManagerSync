@@ -124,7 +124,7 @@ namespace VenueManager
       if (xivAppClient == null || !xivAppClient.IsConfigured) return;
       try
       {
-        xivAppVenues = await xivAppClient.GetVenuesAsync();
+        xivAppVenues = await xivAppClient.Venue.GetVenuesAsync();
         Log.Information("Auto-loaded {Count} venue(s) on startup", xivAppVenues.Count);
         if (xivAppVenues.Count == 0) return;
 
@@ -140,11 +140,11 @@ namespace VenueManager
           Configuration.Save();
         }
 
-        var roles = await xivAppClient.GetRolesAsync(target.Id);
+        var roles = await xivAppClient.Venue.GetRolesAsync(target.Id);
         xivAppRoles = roles;
         Log.Information("Auto-loaded {Count} role(s) for venue {VenueId}", roles.Count, target.Id);
 
-        var servicesResp = await xivAppClient.GetServicesAsync(target.Id);
+        var servicesResp = await xivAppClient.Venue.GetServicesAsync(target.Id);
         availableServices = servicesResp?.Services ?? new List<Service>();
         Log.Information("Auto-loaded {Count} service(s) for venue {VenueId}", availableServices.Count, target.Id);
       }
@@ -438,7 +438,7 @@ namespace VenueManager
       try
       {
         string? trimmedName = string.IsNullOrWhiteSpace(customer) ? null : customer!.Trim();
-        var result = await xivAppClient.LogTransactionAsync(
+        var result = await xivAppClient.Patron.LogTransactionAsync(
           currentXivAppVenueId,
           null,          // no service id from slash path
           (decimal)amount,
@@ -490,7 +490,7 @@ namespace VenueManager
       }
       try
       {
-        var shifts = await xivAppClient.GetMyShiftsAsync(currentXivAppVenueId);
+        var shifts = await xivAppClient.Shift.GetMyShiftsAsync(currentXivAppVenueId);
         var scheduled = shifts.Find(s => s.Status == "SCHEDULED");
 
         if (scheduled == null)
@@ -499,7 +499,7 @@ namespace VenueManager
           return;
         }
 
-        var result = await xivAppClient.ClockInAsync(scheduled.Id);
+        var result = await xivAppClient.Shift.ClockInAsync(scheduled.Id);
         if (result.Success)
         {
           Chat.Print(prefix + "Clocked in. Shift is now active.");
@@ -543,7 +543,7 @@ namespace VenueManager
       }
       try
       {
-        var shifts = await xivAppClient.GetMyShiftsAsync(currentXivAppVenueId);
+        var shifts = await xivAppClient.Shift.GetMyShiftsAsync(currentXivAppVenueId);
         var active = shifts.Find(s => s.Status == "ACTIVE");
 
         if (active == null)
@@ -552,7 +552,7 @@ namespace VenueManager
           return;
         }
 
-        var result = await xivAppClient.ClockOutAsync(active.Id);
+        var result = await xivAppClient.Shift.ClockOutAsync(active.Id);
         if (result.Success)
         {
           var hoursMsg = result.HoursWorked.HasValue
@@ -801,7 +801,7 @@ namespace VenueManager
       {
         try
         {
-          var list = await xivAppClient.GetMyShiftsAsync(currentXivAppVenueId);
+          var list = await xivAppClient.Shift.GetMyShiftsAsync(currentXivAppVenueId);
           ShiftDto? pick = null;
           foreach (var s in list)
           {
@@ -1194,7 +1194,7 @@ namespace VenueManager
             var cached = eventPresence.Get(venueId);
             if (cached == null)
             {
-              var fresh = await xivAppClient.GetActiveEventAsync(venueId);
+              var fresh = await xivAppClient.Venue.GetActiveEventAsync(venueId);
               if (fresh == null) return; // transport error — try again next arrival
               eventPresence.Set(venueId, fresh.Active, fresh.EventId);
               if (!fresh.Active) return;
@@ -1205,7 +1205,7 @@ namespace VenueManager
             }
           }
 
-          await xivAppClient.LogPatronVisitAsync(venueId, characterName, worldName, action);
+          await xivAppClient.Patron.LogPatronVisitAsync(venueId, characterName, worldName, action);
         }
         catch (Exception ex)
         {

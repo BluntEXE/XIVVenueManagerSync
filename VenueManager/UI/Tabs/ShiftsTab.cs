@@ -227,7 +227,7 @@ public class ShiftsTab
     loading = true;
     try
     {
-      shifts = await plugin.xivAppClient.GetMyShiftsAsync(plugin.currentXivAppVenueId);
+      shifts = await plugin.xivAppClient.Shift.GetMyShiftsAsync(plugin.currentXivAppVenueId);
       lastFetch = DateTime.Now;
     }
     catch (Exception ex)
@@ -255,7 +255,7 @@ public class ShiftsTab
 
     try
     {
-      var result = await plugin.xivAppClient.ClockInAsync(shiftId);
+      var result = await plugin.xivAppClient.Shift.ClockInAsync(shiftId);
       if (result.Success)
       {
         statusMessage = "Clocked in!";
@@ -296,7 +296,7 @@ public class ShiftsTab
 
     try
     {
-      var result = await plugin.xivAppClient.ClockOutAsync(shiftId);
+      var result = await plugin.xivAppClient.Shift.ClockOutAsync(shiftId);
       if (result.Success)
       {
         string hours = result.HoursWorked.HasValue

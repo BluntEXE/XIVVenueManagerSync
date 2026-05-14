@@ -221,7 +221,7 @@ public class SalesTab
       string? trimmedName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
       string? trimmedNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
 
-      var result = await plugin.xivAppClient.LogTransactionAsync(
+      var result = await plugin.xivAppClient.Patron.LogTransactionAsync(
         venueId,
         serviceId,
         (decimal)amount,

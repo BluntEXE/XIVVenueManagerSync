@@ -639,7 +639,7 @@ public class SettingsTab
       xivAppStatus = "Fetching…";
       xivAppStatusColor = Colors.CatOverlay0;
 
-      plugin.xivAppVenues = await plugin.xivAppClient.GetVenuesAsync();
+      plugin.xivAppVenues = await plugin.xivAppClient.Venue.GetVenuesAsync();
       Plugin.Log.Information("Fetched {Count} venues from XIV-App", plugin.xivAppVenues.Count);
 
       if (plugin.xivAppVenues.Count == 0)
@@ -691,7 +691,7 @@ public class SettingsTab
     try {
       if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
 
-      var roles = await plugin.xivAppClient.GetRolesAsync(venueId);
+      var roles = await plugin.xivAppClient.Venue.GetRolesAsync(venueId);
       // Store the result so the Settings indicator (and any future role
       // dropdown) can read it. Previously we logged-and-discarded — that
       // was the "roles not updating" bug.
@@ -707,7 +707,7 @@ public class SettingsTab
     try {
       if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
 
-      var response = await plugin.xivAppClient.GetServicesAsync(venueId);
+      var response = await plugin.xivAppClient.Venue.GetServicesAsync(venueId);
       if (response == null)
       {
         plugin.availableServices = new List<Service>();
