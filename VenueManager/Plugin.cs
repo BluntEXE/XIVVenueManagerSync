@@ -71,6 +71,8 @@ namespace VenueManager
     public volatile ShiftDto? activeShift = null;
     private long lastShiftPollMs = 0;
     private volatile bool shiftPollInFlight = false;
+    private string? _shiftReminderShiftId = null;
+    private long _shiftReminderLastMs = 0;
     // Mutex for all clock-in/clock-out operations regardless of which path
     // triggers them (chat command vs UI button). WaitAsync(0) = non-blocking
     // try-acquire so neither path ever blocks the caller's thread.
@@ -779,6 +781,44 @@ namespace VenueManager
       return $"{(int)t.TotalSeconds}s";
     }
 
+    // Fires a chat reminder when an ACTIVE shift runs past its scheduled end.
+    // Prints once at end-of-shift, then repeats every 15 min in case the
+    // first message was missed. State is per shift ID and clears automatically
+    // when the shift is no longer ACTIVE (clocked out or polling returns null).
+    private void CheckShiftEndReminder(ShiftDto? pick)
+    {
+      if (pick == null || pick.Status != "ACTIVE" || string.IsNullOrEmpty(pick.ScheduledEnd))
+      {
+        _shiftReminderShiftId = null;
+        _shiftReminderLastMs = 0;
+        return;
+      }
+
+      if (!DateTime.TryParse(pick.ScheduledEnd, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var endDt))
+        return;
+
+      var overBy = DateTime.UtcNow - endDt.ToUniversalTime();
+      if (overBy.TotalSeconds <= 0)
+      {
+        // Shift hasn't ended yet — clear any stale reminder state for this shift
+        if (_shiftReminderShiftId == pick.Id) { _shiftReminderShiftId = null; _shiftReminderLastMs = 0; }
+        return;
+      }
+
+      var nowMs = Environment.TickCount64;
+      bool firstReminder = _shiftReminderShiftId != pick.Id;
+      bool intervalElapsed = nowMs - _shiftReminderLastMs >= 15 * 60 * 1000;
+
+      if (!firstReminder && !intervalElapsed) return;
+
+      string prefix = Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+      string overMsg = overBy.TotalMinutes < 2 ? "just ended" : $"ended {FormatDuration(overBy)} ago";
+      Chat.Print(prefix + $"Your shift {overMsg} — type /vm end when you're done.");
+
+      _shiftReminderShiftId = pick.Id;
+      _shiftReminderLastMs = nowMs;
+    }
+
     // Lazy shift poller. Runs at most once per 30s, skips if a previous
     // call is still in flight, no-ops when the API client or venue isn't
     // configured. Picks "the most relevant" shift for DTR purposes:
@@ -820,6 +860,7 @@ namespace VenueManager
             }
           }
           activeShift = pick;
+          CheckShiftEndReminder(pick);
         }
         catch (Exception ex)
         {
