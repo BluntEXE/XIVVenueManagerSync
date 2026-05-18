@@ -27,8 +27,8 @@ namespace VenueManager
   public sealed class Plugin : IDalamudPlugin
   {
     public string Name => "XIV Venue Manager Sync";
-    private const string CommandName = "/venue";
-    private const string CommandNameAlias = "/vm";
+    private const string CommandName = "/xvenue";
+    private const string CommandNameAlias = "/xvm";
     [PluginService] public static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] public static IClientState ClientState { get; private set; } = null!;
     [PluginService] public static IFramework Framework { get; private set; } = null!;
@@ -97,7 +97,7 @@ namespace VenueManager
     // dashboard strip's session tally. Not persisted via Configuration
     // because "session" = plugin lifetime, not calendar day. Incremented
     // in SalesTab.LogSaleAsync success branch and by any future slash
-    // subcommand paths (e.g. /vm sale!).
+    // subcommand paths (e.g. /xvm sale!).
     public int SessionSalesTotal = 0;
     public int SessionSalesCount = 0;
 
@@ -206,21 +206,21 @@ namespace VenueManager
       WindowSystem.AddWindow(NotesWindow);
 
       CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open venue manager interface to see patrons list and manage venues" });
-      CommandManager.AddHandler(CommandNameAlias, new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /venue" });
+      CommandManager.AddHandler(CommandNameAlias, new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /xvenue" });
       var SnoozeHandler = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Pause alerts until leaving the house." };
-      var SnoozeHandlerAlias = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /venue snooze" };
+      var SnoozeHandlerAlias = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /xvenue snooze" };
       CommandManager.AddHandler(CommandName + " snooze", SnoozeHandler);
       CommandManager.AddHandler(CommandNameAlias + " snooze", SnoozeHandlerAlias);
       // Sale subcommand sugar. Dalamud dispatches on the parent command
       // (OnCommand receives args="sale 500 Ehno") — these AddHandler
       // calls exist purely to surface each subcommand in /xlhelp. The
       // actual routing lives in OnCommand's args parser.
-      var SaleHelp    = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab. Usage: /vm sale [amount] [customer]" };
-      var SaleBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale without opening UI. Usage: /vm sale! <amount> [customer]" };
-      var TargetHelp  = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab prefilled with current target as customer. Usage: /vm target [amount]" };
-      var TargetBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale for your current target without opening UI. Usage: /vm target! <amount>" };
-      var StartHelp      = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock into your current shift. Usage: /vm start" };
-      var EndHelp        = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock out of your active shift. Usage: /vm end" };
+      var SaleHelp    = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab. Usage: /xvm sale [amount] [customer]" };
+      var SaleBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale without opening UI. Usage: /xvm sale! <amount> [customer]" };
+      var TargetHelp  = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab prefilled with current target as customer. Usage: /xvm target [amount]" };
+      var TargetBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale for your current target without opening UI. Usage: /xvm target! <amount>" };
+      var StartHelp      = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock into your current shift. Usage: /xvm start" };
+      var EndHelp        = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock out of your active shift. Usage: /xvm end" };
       CommandManager.AddHandler(CommandNameAlias + " sale",    SaleHelp);
       CommandManager.AddHandler(CommandNameAlias + " sale!",   SaleBangHelp);
       CommandManager.AddHandler(CommandNameAlias + " target",  TargetHelp);
@@ -327,12 +327,12 @@ namespace VenueManager
       // verb, second token is the amount (integer), the rest is a free
       // text customer name (may contain spaces).
       //
-      // /vm sale                    → open Sales tab, no prefill
-      // /vm sale 500                → open Sales tab, amount=500
-      // /vm sale 500 Ehno Smith     → open Sales tab, amount=500, customer="Ehno Smith"
-      // /vm sale! 500 Ehno          → log immediately, no UI shown, chat toast on result
-      // /vm target                  → open Sales tab with current target prefilled
-      // /vm target 500              → open Sales tab with current target + amount
+      // /xvm sale                    → open Sales tab, no prefill
+      // /xvm sale 500                → open Sales tab, amount=500
+      // /xvm sale 500 Ehno Smith     → open Sales tab, amount=500, customer="Ehno Smith"
+      // /xvm sale! 500 Ehno          → log immediately, no UI shown, chat toast on result
+      // /xvm target                  → open Sales tab with current target prefilled
+      // /xvm target 500              → open Sales tab with current target + amount
       if (args.StartsWith("sale") || args.StartsWith("target"))
       {
         var parts = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -355,7 +355,7 @@ namespace VenueManager
           string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
           if (parsedAmount == null)
           {
-            Chat.Print(prefix + "Usage: /vm target! <amount>");
+            Chat.Print(prefix + "Usage: /xvm target! <amount>");
             return;
           }
           var t = TargetManager.Target;
@@ -371,7 +371,7 @@ namespace VenueManager
 
         if (verb == "target")
         {
-          // For /vm target the "customer" override is the game target,
+          // For /xvm target the "customer" override is the game target,
           // not an args field. If the player has no target we fall
           // through with null and let the Sales tab's own Use Target
           // flow handle it next frame.
@@ -387,7 +387,7 @@ namespace VenueManager
         {
           if (parsedAmount == null)
           {
-            Chat.Print((this.Configuration.showPluginNameInChat ? $"[{Name}] " : "") + "Usage: /vm sale! <amount> [customer]");
+            Chat.Print((this.Configuration.showPluginNameInChat ? $"[{Name}] " : "") + "Usage: /xvm sale! <amount> [customer]");
             return;
           }
           _ = LogSaleSilentAsync(parsedAmount.Value, customerFromArgs);
@@ -417,7 +417,7 @@ namespace VenueManager
       MainWindow.IsOpen = true;
     }
 
-    // Fire-and-forget silent sale log used by `/vm sale!`. Bypasses the
+    // Fire-and-forget silent sale log used by `/xvm sale!`. Bypasses the
     // Sales tab form state entirely — writes straight through to the
     // XIV-App API and posts a chat toast on result. Success increments
     // the dashboard session tally so the strip readout stays consistent
@@ -468,7 +468,7 @@ namespace VenueManager
       }
     }
 
-    // Fire-and-forget clock-in used by `/vm start`. Finds the first
+    // Fire-and-forget clock-in used by `/xvm start`. Finds the first
     // SCHEDULED shift within its clock-in window and clocks in.
     public async Task ShiftClockInSilentAsync()
     {
@@ -521,7 +521,7 @@ namespace VenueManager
       }
     }
 
-    // Fire-and-forget clock-out used by `/vm end`. Finds the first
+    // Fire-and-forget clock-out used by `/xvm end`. Finds the first
     // ACTIVE shift and clocks out, reporting hours worked.
     public async Task ShiftClockOutSilentAsync()
     {
@@ -813,7 +813,7 @@ namespace VenueManager
 
       string prefix = Configuration.showPluginNameInChat ? $"[{Name}] " : "";
       string overMsg = overBy.TotalMinutes < 2 ? "just ended" : $"ended {FormatDuration(overBy)} ago";
-      Chat.Print(prefix + $"Your shift {overMsg} — type /vm end when you're done.");
+      Chat.Print(prefix + $"Your shift {overMsg} — type /xvm end when you're done.");
 
       _shiftReminderShiftId = pick.Id;
       _shiftReminderLastMs = nowMs;
