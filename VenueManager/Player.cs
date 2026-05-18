@@ -26,7 +26,10 @@ namespace VenueManager
           Player player = new Player();
           player.Name = character.Name.TextValue;
           player.homeWorld = character.HomeWorld.Value.RowId;
-          player.WorldName = character.HomeWorld.Value.Name.ToString();
+          var homeWorldName = character.HomeWorld.Value.Name.ToString();
+          player.WorldName = string.IsNullOrEmpty(homeWorldName) || homeWorldName == "Unknown"
+            ? character.CurrentWorld.Value.Name.ToString()
+            : homeWorldName;
           player.inHouse = true;
           player.isFriend = character.StatusFlags.HasFlag(StatusFlags.Friend);
           player.ObjectId = character.GameObjectId;

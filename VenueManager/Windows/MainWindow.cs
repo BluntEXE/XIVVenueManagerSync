@@ -92,6 +92,9 @@ public class MainWindow : Window, IDisposable
     try
     {
       drawDashboardStrip();
+      // First-run: no API key → land on Settings so the user sees setup instructions.
+      if (string.IsNullOrEmpty(this.configuration.xivAppApiKey) && pendingTab == null)
+        pendingTab = "Settings";
       ImGui.BeginTabBar("Tabs");
       // Tab order (left to right): Patrons │ Sales │ History │ Venues │ Settings
       // The hot path is "who's here now" → "log a sale", so those two

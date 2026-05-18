@@ -56,6 +56,9 @@ public class SettingsTab
     ImGui.BeginChild("SettingsRoot");
     ImGui.Indent(5);
 
+    if (string.IsNullOrEmpty(this.configuration.xivAppApiKey))
+      DrawWelcomeBanner();
+
     // XIV-App Sync is the plugin's primary workflow — surface it first so a
     // fresh install lands on the setup the user actually needs to do.
     DrawXivAppSettings();
@@ -395,6 +398,24 @@ public class SettingsTab
       4096,
       new Vector2(-1, ImGui.GetTextLineHeightWithSpacing() * 10),
       ImGuiInputTextFlags.ReadOnly);
+  }
+
+  // -- Welcome banner (first-run, no API key) --------------------------------
+
+  private void DrawWelcomeBanner()
+  {
+    ImGui.TextColored(Colors.CatCatGreen, "Welcome to XIV Venue Manager Sync!");
+    ImGui.TextWrapped("To get started, you'll need an API key from xivvenuemanager.com.");
+    ImGui.Spacing();
+    ImGui.TextWrapped("1. Log in with Discord at xivvenuemanager.com");
+    ImGui.TextWrapped("2. Go to your venue's Settings -> API Keys and create a key");
+    ImGui.TextWrapped("3. Paste it into the API Key field below");
+    ImGui.Spacing();
+    if (ImGui.Button("Open xivvenuemanager.com"))
+      Util.OpenLink("https://xivvenuemanager.com");
+    ImGui.Spacing();
+    ImGui.Separator();
+    ImGui.Spacing();
   }
 
   // -- XIV-App Sync ---------------------------------------------------------
