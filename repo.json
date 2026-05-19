@@ -20,9 +20,9 @@
       "staff"
     ],
     "IconUrl": "https://raw.githubusercontent.com/BluntEXE/XIVVenueManagerSync/master/images/icon.png",
-    "DownloadLinkInstall": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.6.9/XIVVenueManagerSync.zip",
-    "DownloadLinkUpdate": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.6.9/XIVVenueManagerSync.zip",
-    "DownloadLinkTesting": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.6.9/XIVVenueManagerSync.zip",
+    "DownloadLinkInstall": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.7.0/XIVVenueManagerSync.zip",
+    "DownloadLinkUpdate": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.7.0/XIVVenueManagerSync.zip",
+    "DownloadLinkTesting": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.7.0/XIVVenueManagerSync.zip",
     "TestingAssemblyVersion": "3.7.0"
   }
 ]
