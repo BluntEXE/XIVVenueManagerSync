@@ -1077,9 +1077,17 @@ namespace VenueManager
         return;
       }
 
-      // Don't show alerts if snoozed 
+      // Auto-greeter fires independently of chat alert settings and snooze —
+      // the greeter may want tells without the visual chat noise.
+      // Skips already-here players when the greeter re-enters the venue.
+      if (Configuration.enableGreeterMode && !justEnteredHouse && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
+      {
+        CommandManager.ProcessCommand($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
+      }
+
+      // Don't show alerts if snoozed
       if (pluginState.snoozed) return;
-      // Don't show if chat alerts disabled 
+      // Don't show if chat alerts disabled
       if (!Configuration.showChatAlerts) return;
 
       // Alert type is already here 
@@ -1132,13 +1140,6 @@ namespace VenueManager
 
       messageBuilder.AddUiForegroundOff();
       Chat.Print(new XivChatEntry() { Message = messageBuilder.Build() });
-
-      // Auto-greeter: send a /tell to each patron on genuine entry.
-      // Not fired for already-here players when the user re-enters the venue.
-      if (Configuration.enableGreeterMode && !justEnteredHouse && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
-      {
-        CommandManager.ProcessCommand($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
-      }
     }
 
     private void showGuestLeaveChatAlert(Player player)
