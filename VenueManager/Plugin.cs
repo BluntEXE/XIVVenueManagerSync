@@ -1090,9 +1090,8 @@ namespace VenueManager
       // Auto-greeter fires independently of chat alert settings and snooze —
       // the greeter may want tells without the visual chat noise.
       // Skips already-here players when the greeter re-enters the venue.
-      if (Configuration.enableGreeterMode && !justEnteredHouse && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
+      if (Configuration.enableGreeterMode && !justEnteredHouse && player.entryCount == 1 && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
       {
-        Chat.Print($"[XIV-VM] Greeter: sending tell to {player.Name}@{player.WorldName}");
         SendGameChat($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
       }
 
