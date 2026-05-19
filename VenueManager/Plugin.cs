@@ -11,6 +11,7 @@ using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Game.Text;
 using System.Diagnostics;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.System.String;
 using System.Collections.Generic;
 using System;
 using System.Globalization;
@@ -1059,6 +1060,15 @@ namespace VenueManager
       doorbell.load();
     }
 
+    private unsafe void SendGameChat(string message)
+    {
+      var uiModule = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework.Instance()->GetUIModule();
+      if (uiModule == null) return;
+      var chatMessage = Utf8String.FromString(message);
+      uiModule->ProcessChatBoxEntry(chatMessage);
+      chatMessage->Dtor();
+    }
+
     private void showGuestEnterChatAlert(Player player, bool isSelf)
     {
       var messageBuilder = new SeStringBuilder();
@@ -1083,7 +1093,7 @@ namespace VenueManager
       if (Configuration.enableGreeterMode && !justEnteredHouse && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
       {
         Chat.Print($"[XIV-VM] Greeter: sending tell to {player.Name}@{player.WorldName}");
-        CommandManager.ProcessCommand($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
+        SendGameChat($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
       }
 
       // Don't show alerts if snoozed
