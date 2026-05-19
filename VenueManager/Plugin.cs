@@ -1082,6 +1082,7 @@ namespace VenueManager
       // Skips already-here players when the greeter re-enters the venue.
       if (Configuration.enableGreeterMode && !justEnteredHouse && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
       {
+        Chat.Print($"[XIV-VM] Greeter: sending tell to {player.Name}@{player.WorldName}");
         CommandManager.ProcessCommand($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
       }
 
