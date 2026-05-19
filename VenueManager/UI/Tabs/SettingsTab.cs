@@ -79,6 +79,9 @@ public class SettingsTab
     DrawPatronChatAlerts();
 
     DrawSectionSeparator();
+    DrawGreeterSettings();
+
+    DrawSectionSeparator();
     DrawPatronSoundAlerts();
 
     DrawSectionSeparator();
@@ -297,6 +300,47 @@ public class SettingsTab
 
     if (!this.configuration.showChatAlerts) ImGui.EndDisabled();
     ImGui.Unindent();
+    if (!this.configuration.showGuestsTab) ImGui.EndDisabled();
+  }
+
+  // -- Greeter Automation ---------------------------------------------------
+
+  private void DrawGreeterSettings()
+  {
+    if (!this.configuration.showGuestsTab) ImGui.BeginDisabled();
+
+    DrawSectionHeader("Greeter Automation");
+    ImGui.TextWrapped("Automatically sends a /tell to each patron when they enter the venue.");
+    ImGui.Spacing();
+
+    var enableGreeterMode = this.configuration.enableGreeterMode;
+    if (ImGui.Checkbox("Enable Auto-Greeter##greeterMode", ref enableGreeterMode))
+    {
+      this.configuration.enableGreeterMode = enableGreeterMode;
+      this.configuration.Save();
+    }
+    if (ImGui.IsItemHovered())
+    {
+      ImGui.SetTooltip("Sends a /tell to each patron as they enter.\nOnly fires for new entries — not for players already inside when you arrive.");
+    }
+
+    if (enableGreeterMode)
+    {
+      ImGui.Indent(20);
+      var greeterMessage = this.configuration.greeterMessage;
+      if (ImGui.InputTextWithHint("Greeting##greeterMsg", "Welcome! Let us know if you need anything ♥", ref greeterMessage, 400))
+      {
+        this.configuration.greeterMessage = greeterMessage;
+        this.configuration.Save();
+      }
+      if (ImGui.IsItemHovered())
+      {
+        ImGui.SetTooltip("Message sent via /tell to each patron on entry. Max ~400 characters.");
+      }
+      ImGui.TextColored(Colors.CatSubtext0, $"Sends: /tell PlayerName@World {(string.IsNullOrWhiteSpace(this.configuration.greeterMessage) ? "Welcome! Let us know if you need anything ♥" : this.configuration.greeterMessage)}");
+      ImGui.Unindent(20);
+    }
+
     if (!this.configuration.showGuestsTab) ImGui.EndDisabled();
   }
 

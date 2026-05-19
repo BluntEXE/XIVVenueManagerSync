@@ -1132,6 +1132,13 @@ namespace VenueManager
 
       messageBuilder.AddUiForegroundOff();
       Chat.Print(new XivChatEntry() { Message = messageBuilder.Build() });
+
+      // Auto-greeter: send a /tell to each patron on genuine entry.
+      // Not fired for already-here players when the user re-enters the venue.
+      if (Configuration.enableGreeterMode && !justEnteredHouse && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
+      {
+        CommandManager.ProcessCommand($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
+      }
     }
 
     private void showGuestLeaveChatAlert(Player player)

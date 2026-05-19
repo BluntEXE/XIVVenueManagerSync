@@ -28,6 +28,10 @@ namespace VenueManager
     public bool showChatAlertAlreadyHere { get; set; } = false;
     public bool showPluginNameInChat { get; set; } = false;
 
+    // Auto-send a /tell to each patron when they enter the venue.
+    public bool enableGreeterMode { get; set; } = false;
+    public string greeterMessage { get; set; } = "Welcome! Let us know if you need anything ♥";
+
     // Should sound alerts be played when new players join the house
     public bool soundAlerts { get; set; } = false;
     public float soundVolume { get; set; } = 1;
