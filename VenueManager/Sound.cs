@@ -9,7 +9,8 @@ namespace VenueManager
     DOORBELL = 0,
     RECEPTION_BELL,
     RECEPTION_BELL_SINGLE,
-    SATO
+    BOOBA,
+    HELLOMF
   };
 
   
@@ -19,7 +20,8 @@ namespace VenueManager
       "Standard Doorbell",
       "Reception Bell Double",
       "Reception Bell Single",
-      "Sato"
+      "Booba",
+      "Hello MF"
     };
     
     private string file = "";
@@ -37,7 +39,8 @@ namespace VenueManager
       if (type == DOORBELL_TYPE.DOORBELL) file = "doorbell_home.wav";
       if (type == DOORBELL_TYPE.RECEPTION_BELL) file = "reception_bell.wav";
       if (type == DOORBELL_TYPE.RECEPTION_BELL_SINGLE) file = "reception_bell_single.wav";
-      if (type == DOORBELL_TYPE.SATO) file = "sato.wav";
+      if (type == DOORBELL_TYPE.BOOBA) file = "booba.wav";
+      if (type == DOORBELL_TYPE.HELLOMF) file = "hellomf.wav";
     }
 
     public void load() {
