@@ -328,16 +328,38 @@ public class SettingsTab
     {
       ImGui.Indent(20);
       var greeterMessage = this.configuration.greeterMessage;
-      if (ImGui.InputTextWithHint("Greeting##greeterMsg", "Welcome! Let us know if you need anything ♥", ref greeterMessage, 400))
+      if (ImGui.InputTextWithHint("First visit##greeterMsg", "Welcome! Let us know if you need anything ♥", ref greeterMessage, 400))
       {
         this.configuration.greeterMessage = greeterMessage;
         this.configuration.Save();
       }
       if (ImGui.IsItemHovered())
+        ImGui.SetTooltip("Sent on a patron's first entry this session.");
+      ImGui.Unindent(20);
+    }
+
+    ImGui.Spacing();
+
+    var enableReentryGreeter = this.configuration.enableReentryGreeter;
+    if (ImGui.Checkbox("Re-entry Greeter##reentryGreeter", ref enableReentryGreeter))
+    {
+      this.configuration.enableReentryGreeter = enableReentryGreeter;
+      this.configuration.Save();
+    }
+    if (ImGui.IsItemHovered())
+      ImGui.SetTooltip("Sends a different /tell when a patron returns after leaving.\nUseful for DJ announcements or updated venue info.");
+
+    if (enableReentryGreeter)
+    {
+      ImGui.Indent(20);
+      var reentryMsg = this.configuration.reentryGreeterMessage;
+      if (ImGui.InputTextWithHint("Re-entry##reentryMsg", "Welcome back!", ref reentryMsg, 400))
       {
-        ImGui.SetTooltip("Message sent via /tell to each patron on entry. Max ~400 characters.");
+        this.configuration.reentryGreeterMessage = reentryMsg;
+        this.configuration.Save();
       }
-      ImGui.TextColored(Colors.CatSubtext0, $"Sends: /tell PlayerName@World {(string.IsNullOrWhiteSpace(this.configuration.greeterMessage) ? "Welcome! Let us know if you need anything ♥" : this.configuration.greeterMessage)}");
+      if (ImGui.IsItemHovered())
+        ImGui.SetTooltip("Sent every time a patron re-enters after leaving.");
       ImGui.Unindent(20);
     }
 

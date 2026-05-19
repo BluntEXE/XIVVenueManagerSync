@@ -32,6 +32,10 @@ namespace VenueManager
     public bool enableGreeterMode { get; set; } = false;
     public string greeterMessage { get; set; } = "Welcome! Let us know if you need anything ♥";
 
+    // Separate tell for patrons who have visited before (re-entry).
+    public bool enableReentryGreeter { get; set; } = false;
+    public string reentryGreeterMessage { get; set; } = "Welcome back!";
+
     // Should sound alerts be played when new players join the house
     public bool soundAlerts { get; set; } = false;
     public float soundVolume { get; set; } = 1;

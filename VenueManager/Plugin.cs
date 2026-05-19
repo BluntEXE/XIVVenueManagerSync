@@ -1090,9 +1090,12 @@ namespace VenueManager
       // Auto-greeter fires independently of chat alert settings and snooze —
       // the greeter may want tells without the visual chat noise.
       // Skips already-here players when the greeter re-enters the venue.
-      if (Configuration.enableGreeterMode && !justEnteredHouse && player.entryCount == 1 && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
+      if (!justEnteredHouse)
       {
-        SendGameChat($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
+        if (player.entryCount == 1 && Configuration.enableGreeterMode && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
+          SendGameChat($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
+        else if (player.entryCount > 1 && Configuration.enableReentryGreeter && !string.IsNullOrWhiteSpace(Configuration.reentryGreeterMessage))
+          SendGameChat($"/tell {player.Name}@{player.WorldName} {Configuration.reentryGreeterMessage}");
       }
 
       // Don't show alerts if snoozed
