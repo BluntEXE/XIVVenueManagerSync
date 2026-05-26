@@ -136,9 +136,16 @@ public class ShiftsTab
 
   private void drawShiftRow(ShiftDto shift)
   {
-    // Parse times for display
-    var schedStart = DateTime.Parse(shift.ScheduledStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind).ToLocalTime();
-    var schedEnd = DateTime.Parse(shift.ScheduledEnd, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind).ToLocalTime();
+    // Parse scheduled times — use TryParse so malformed/null server data
+    // doesn't throw inside the ImGui draw loop and leave BeginChild unbalanced.
+    if (!DateTime.TryParse(shift.ScheduledStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var schedStartUtc)
+     || !DateTime.TryParse(shift.ScheduledEnd,   CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var schedEndUtc))
+    {
+      ImGui.TextDisabled($"(invalid shift data — id: {shift.Id})");
+      return;
+    }
+    var schedStart = schedStartUtc.ToLocalTime();
+    var schedEnd   = schedEndUtc.ToLocalTime();
 
     // Format: "Apr 12  7:00 PM — 11:00 PM"
     string timeLabel;
@@ -187,10 +194,10 @@ public class ShiftsTab
     else if (shift.Status == "ACTIVE")
     {
       // Show elapsed time + clock out button
-      if (shift.ActualStart != null)
+      if (!string.IsNullOrEmpty(shift.ActualStart)
+       && DateTime.TryParse(shift.ActualStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var startedUtc))
       {
-        var started = DateTime.Parse(shift.ActualStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind).ToLocalTime();
-        var elapsed = DateTime.Now - started;
+        var elapsed = DateTime.Now - startedUtc.ToLocalTime();
         ImGui.SameLine();
         ImGui.TextColored(ColorActive, $"{elapsed.Hours}h {elapsed.Minutes}m");
       }
@@ -207,13 +214,13 @@ public class ShiftsTab
       }
       if (clocking) ImGui.EndDisabled();
     }
-    else if (shift.Status == "COMPLETED" && shift.ActualStart != null && shift.ActualEnd != null)
+    else if (shift.Status == "COMPLETED"
+          && DateTime.TryParse(shift.ActualStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var completedStartUtc)
+          && DateTime.TryParse(shift.ActualEnd,   CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var completedEndUtc))
     {
-      var started = DateTime.Parse(shift.ActualStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind).ToLocalTime();
-      var ended = DateTime.Parse(shift.ActualEnd, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind).ToLocalTime();
-      var worked = ended - started;
+      var worked = completedEndUtc - completedStartUtc;
       ImGui.SameLine();
-      ImGui.TextDisabled($"{worked.Hours}h {worked.Minutes}m worked");
+      ImGui.TextDisabled($"{(int)worked.TotalHours}h {worked.Minutes}m worked");
     }
 
     ImGui.Spacing();

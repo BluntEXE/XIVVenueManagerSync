@@ -64,11 +64,15 @@ namespace VenueManager
 
     public void play() {
       Task.Run(() => {
-        if (audioFileReader == null || wavEvent == null) load();
-        if (audioFileReader == null || wavEvent == null) return;
-        wavEvent.Stop();
-        audioFileReader.Position = 0;
-        wavEvent.Play();
+        try {
+          if (audioFileReader == null || wavEvent == null) load();
+          if (audioFileReader == null || wavEvent == null) return;
+          wavEvent.Stop();
+          audioFileReader.Position = 0;
+          wavEvent.Play();
+        } catch (Exception ex) {
+          Plugin.Log.Warning($"Doorbell playback failed: {ex.Message}");
+        }
       });
     }
 

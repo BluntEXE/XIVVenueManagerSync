@@ -21,7 +21,6 @@ using System.Threading.Tasks;
 using VenueManager.UI;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Bindings.ImGui;
-using Map = Lumina.Excel.Sheets.Map;
 
 namespace VenueManager
 {
@@ -72,7 +71,7 @@ namespace VenueManager
     public volatile ShiftDto? activeShift = null;
     private long lastShiftPollMs = 0;
     private volatile bool shiftPollInFlight = false;
-    private string? _shiftReminderShiftId = null;
+    private volatile string? _shiftReminderShiftId = null;
     private long _shiftReminderLastMs = 0;
     // Mutex for all clock-in/clock-out operations regardless of which path
     // triggers them (chat command vs UI button). WaitAsync(0) = non-blocking
@@ -269,9 +268,15 @@ namespace VenueManager
 
     public void Dispose()
     {
-      // Remove framework listener on close 
+      PluginInterface.UiBuilder.Draw -= DrawUI;
+      PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUI;
+      PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUI;
+      ClientState.Logout -= OnLogout;
+      xivAppClient?.Dispose();
+
+      // Remove framework listener on close
       Framework.Update -= OnFrameworkUpdate;
-      // Remove territory change listener 
+      // Remove territory change listener
       ClientState.TerritoryChanged -= OnTerritoryChanged;
 
       // Dispose our sound file
@@ -634,7 +639,6 @@ namespace VenueManager
         leftHouse();
       }
 
-      this.Configuration.Save();
     }
 
     public void startTimers()
@@ -894,7 +898,6 @@ namespace VenueManager
             try
             {
               var housingManager = HousingManager.Instance();
-              var worldId = PlayerState.CurrentWorld.Value.RowId;
               // If the user has transitioned into a new house. Store that house information. Ensure we have a world to set it to 
               if (pluginState.currentHouse.houseId != (long)housingManager->GetCurrentIndoorHouseId().Id)
               {
