@@ -1,0 +1,17 @@
+name: Release Ping
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify-discord:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post release to announcements
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCEMENTS_WEBHOOK }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+        run: |
+          python3 -c "import os,json,urllib.request; w=os.environ['DISCORD_WEBHOOK']; t=os.environ['RELEASE_TAG']; u=os.environ['RELEASE_URL']; p=json.dumps({'content':'<@737311137967767553> **XIV Venue Manager Plugin** '+t+' released','embeds':[{'title':'v'+t,'url':u,'color':4450560}]}).encode(); urllib.request.urlopen(urllib.request.Request(w,data=p,headers={'Content-Type':'application/json'}))"
