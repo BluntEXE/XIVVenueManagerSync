@@ -118,8 +118,8 @@ public class MainWindow : Window, IDisposable
 
         float webW   = venueUrl != null ? ImGui.CalcTextSize("Web").X + style.FramePadding.X * 2 + style.ItemSpacing.X : 0f;
         float rightW = webW + ImGui.CalcTextSize(sessText).X + style.ItemSpacing.X + ImGui.CalcTextSize($"  {verText}").X;
-        float offset = ImGui.GetContentRegionAvail().X - rightW - style.ItemSpacing.X - style.FramePadding.X;
-        if (offset > 0) { ImGui.SameLine(); ImGui.SetCursorPosX(ImGui.GetCursorPosX() + offset); }
+        float targetX = ImGui.GetWindowWidth() - style.WindowPadding.X - rightW - style.ItemSpacing.X;
+        if (targetX > ImGui.GetCursorPosX() + style.ItemSpacing.X) { ImGui.SameLine(); ImGui.SetCursorPosX(targetX); }
 
         if (venueUrl != null)
         {
