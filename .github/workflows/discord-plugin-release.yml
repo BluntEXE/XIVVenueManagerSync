@@ -1,0 +1,27 @@
+name: Discord - Plugin Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Discord
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+        run: |
+          curl -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"🔌 Plugin Update Released\",
+                \"description\": \"XIVVenueManagerSync **${RELEASE_TAG}** is now available.\",
+                \"color\": 4751,
+                \"fields\": [
+                  {\"name\": \"🔗 Download\", \"value\": \"${RELEASE_URL}\"}
+                ]
+              }]
+            }"
