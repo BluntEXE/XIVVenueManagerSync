@@ -2,8 +2,10 @@ using System;
 using System.Globalization;
 using System.Numerics;
 using System.Threading.Tasks;
+using Dalamud.Interface;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Utility;
+using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
@@ -54,21 +56,17 @@ public class SalesTab
     // --- Gates ---------------------------------------------------------
     if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured)
     {
-      ImGui.TextWrapped("XIV-App is not configured. Add your API key in Settings before logging sales.");
+      ThemeManager.ConfigBanner("XIV-App is not configured. Add your API key in Settings before logging sales.");
       ImGui.EndChild();
       return;
     }
 
     if (string.IsNullOrEmpty(plugin.currentXivAppVenueId))
     {
-      ImGui.TextWrapped("No venue selected. Pick an active venue in Settings.");
+      ThemeManager.ConfigBanner("No venue selected. Pick an active venue in Settings.");
       ImGui.EndChild();
       return;
     }
-
-    ImGui.TextWrapped("Log a sale for the active venue. Pick a service, confirm the customer and amount, then click Log Sale.");
-    ImGui.Separator();
-    ImGui.Spacing();
 
     // --- Service dropdown ---------------------------------------------
     var services = plugin.availableServices;
@@ -79,16 +77,12 @@ public class SalesTab
       selectedLabel = $"{svc.Name} — {svc.Price}g";
     }
 
-    ImGui.Text("Service");
+    ImGui.TextColored(Colors.XivSubtext0, "Service");
     if (ImGui.BeginCombo("##sales-service", selectedLabel))
     {
-      // "(no service)" option — lets the user log a freeform sale that
-      // isn't tied to a listed service row.
       bool noneSelected = selectedServiceIndex == 0;
       if (ImGui.Selectable("(no service)", noneSelected))
-      {
         selectedServiceIndex = 0;
-      }
       if (noneSelected) ImGui.SetItemDefaultFocus();
 
       for (int i = 0; i < services.Count; i++)
@@ -99,13 +93,8 @@ public class SalesTab
         if (ImGui.Selectable(label, isSelected))
         {
           selectedServiceIndex = i + 1;
-          // Auto-fill the amount from the service price. User can still
-          // edit the Amount field before submitting — useful for tips or
-          // partial payments.
           if (decimal.TryParse(svc.Price, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
-          {
             amountText = ((int)parsed).ToString(CultureInfo.InvariantCulture);
-          }
         }
         if (isSelected) ImGui.SetItemDefaultFocus();
       }
@@ -115,41 +104,40 @@ public class SalesTab
     ImGui.Spacing();
 
     // --- Customer name -------------------------------------------------
-    // Prefill from current target exactly once per tab lifetime. The
-    // "Use Target" button on the right re-reads the target on demand.
     if (!customerPrimed)
     {
       var target = Plugin.TargetManager.Target;
-      if (target != null)
-      {
-        customerName = target.Name.TextValue;
-      }
+      if (target != null) customerName = target.Name.TextValue;
       customerPrimed = true;
     }
 
-    ImGui.Text("Customer");
+    ImGui.TextColored(Colors.XivSubtext0, "Customer");
+    float iconBtnW = ImGui.GetFrameHeight();
+    ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - iconBtnW - ImGui.GetStyle().ItemSpacing.X);
     ImGui.InputText("##sales-customer", ref customerName, 64);
     ImGui.SameLine();
-    if (ImGui.Button("Use Target"))
+    // Icon button: crosshair = "use target"
+    ImGui.PushFont(UiBuilder.IconFont);
+    if (ImGui.Button($"{FontAwesomeIcon.Crosshairs.ToIconString()}##target", new Vector2(iconBtnW, iconBtnW)))
     {
       var target = Plugin.TargetManager.Target;
-      if (target != null)
-      {
-        customerName = target.Name.TextValue;
-      }
+      if (target != null) customerName = target.Name.TextValue;
     }
+    ImGui.PopFont();
+    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use current target");
 
     ImGui.Spacing();
 
     // --- Amount --------------------------------------------------------
-    ImGui.Text("Amount (gil)");
+    ImGui.TextColored(Colors.XivSubtext0, "Amount (gil)");
+    ImGui.SetNextItemWidth(200f);
     ImGui.InputText("##sales-amount", ref amountText, 16);
 
     ImGui.Spacing();
 
     // --- Notes ---------------------------------------------------------
-    ImGui.Text("Notes (optional)");
-    ImGui.InputTextMultiline("##sales-notes", ref notes, 512, new Vector2(-1, 60));
+    ImGui.TextColored(Colors.XivSubtext0, "Notes (optional)");
+    ImGui.InputTextMultiline("##sales-notes", ref notes, 512, new Vector2(-1, 48f));
 
     ImGui.Spacing();
 
@@ -157,9 +145,10 @@ public class SalesTab
     bool parseOk = int.TryParse(amountText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedAmount) && parsedAmount > 0;
     bool canSubmit = parseOk && !submitting;
     if (!canSubmit) ImGui.BeginDisabled();
-    if (ImGui.Button("Log Sale"))
+    using (ThemeManager.PrimaryButton())
     {
-      _ = LogSaleAsync(parsedAmount);
+      if (ImGui.Button(submitting ? "Logging..." : "Log Sale", new Vector2(-1, 26f)))
+        _ = LogSaleAsync(parsedAmount);
     }
     if (!canSubmit) ImGui.EndDisabled();
 
@@ -173,10 +162,7 @@ public class SalesTab
     if (!string.IsNullOrEmpty(statusMessage))
     {
       ImGui.Spacing();
-      var color = statusIsError
-        ? new Vector4(0.95f, 0.4f, 0.4f, 1f)
-        : new Vector4(0.4f, 0.85f, 0.5f, 1f);
-      ImGui.TextColored(color, statusMessage);
+      ImGui.TextColored(statusIsError ? Colors.StatusErr : Colors.StatusOk, statusMessage);
 
       // After a successful sale, offer a deep link to the sales page.
       if (!statusIsError)

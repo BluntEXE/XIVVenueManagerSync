@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
+using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
@@ -23,9 +24,9 @@ public class ShiftsTab
   // responsive without hammering the server on every frame.
   private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
 
-  private static readonly Vector4 ColorActive   = new(0.54f, 0.80f, 0.52f, 1f); // emerald
-  private static readonly Vector4 ColorUpcoming = new(0.70f, 0.70f, 0.75f, 1f); // muted
-  private static readonly Vector4 ColorComplete = new(0.50f, 0.50f, 0.55f, 1f); // dim
+  private static readonly Vector4 ColorActive   = Colors.XivGreen;
+  private static readonly Vector4 ColorUpcoming = Colors.XivSubtext0;
+  private static readonly Vector4 ColorComplete = Colors.XivOverlay0;
 
   public ShiftsTab(Plugin plugin)
   {
@@ -39,14 +40,14 @@ public class ShiftsTab
     // --- Gates ---
     if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured)
     {
-      ImGui.TextWrapped("XIV-App is not configured. Add your API key in Settings.");
+      ThemeManager.ConfigBanner("XIV-App is not configured. Add your API key in Settings.");
       ImGui.EndChild();
       return;
     }
 
     if (string.IsNullOrEmpty(plugin.currentXivAppVenueId))
     {
-      ImGui.TextWrapped("No venue selected. Pick one in Settings.");
+      ThemeManager.ConfigBanner("No venue selected. Pick one in Settings.");
       ImGui.EndChild();
       return;
     }
@@ -74,8 +75,7 @@ public class ShiftsTab
 
     if (shifts.Count == 0 && !loading)
     {
-      ImGui.Spacing();
-      ImGui.TextWrapped("No shifts scheduled. Shifts are assigned by your venue manager on the website.");
+      ThemeManager.EmptyState("No shifts scheduled.");
       ImGui.EndChild();
       return;
     }
@@ -91,8 +91,7 @@ public class ShiftsTab
       {
         anyActive = true;
         ImGui.Spacing();
-        ImGui.TextColored(ColorActive, "ON SHIFT");
-        ImGui.Separator();
+        ThemeManager.SectionHeader("ON SHIFT", Colors.XivGreen);
       }
       if (shift.Status == "ACTIVE") drawShiftRow(shift);
     }
@@ -103,8 +102,7 @@ public class ShiftsTab
       {
         anyUpcoming = true;
         ImGui.Spacing();
-        ImGui.TextColored(ColorUpcoming, "UPCOMING");
-        ImGui.Separator();
+        ThemeManager.SectionHeader("UPCOMING", Colors.XivSubtext0);
       }
       if (shift.Status == "SCHEDULED") drawShiftRow(shift);
     }
@@ -115,8 +113,7 @@ public class ShiftsTab
       {
         anyCompleted = true;
         ImGui.Spacing();
-        ImGui.TextColored(ColorComplete, "COMPLETED");
-        ImGui.Separator();
+        ThemeManager.SectionHeader("COMPLETED", Colors.XivOverlay0);
       }
       if (shift.Status == "COMPLETED") drawShiftRow(shift);
     }
@@ -125,10 +122,7 @@ public class ShiftsTab
     if (!string.IsNullOrEmpty(statusMessage))
     {
       ImGui.Spacing();
-      var color = statusIsError
-        ? new Vector4(0.95f, 0.4f, 0.4f, 1f)
-        : new Vector4(0.4f, 0.85f, 0.5f, 1f);
-      ImGui.TextColored(color, statusMessage);
+      ImGui.TextColored(statusIsError ? Colors.StatusErr : Colors.StatusOk, statusMessage);
     }
 
     ImGui.EndChild();
@@ -180,9 +174,10 @@ public class ShiftsTab
       ImGui.SetCursorPosX(rightEdge - btnWidth);
 
       if (!canClockIn) ImGui.BeginDisabled();
-      if (ImGui.SmallButton(btnLabel))
+      using (ThemeManager.PrimaryButton())
       {
-        _ = ClockInAsync(shift.Id);
+        if (ImGui.SmallButton(btnLabel))
+          _ = ClockInAsync(shift.Id);
       }
       if (!canClockIn) ImGui.EndDisabled();
 
@@ -208,9 +203,10 @@ public class ShiftsTab
       ImGui.SetCursorPosX(rightEdge - btnWidth);
 
       if (clocking) ImGui.BeginDisabled();
-      if (ImGui.SmallButton(btnLabel))
+      using (ThemeManager.PrimaryButton())
       {
-        _ = ClockOutAsync(shift.Id);
+        if (ImGui.SmallButton(btnLabel))
+          _ = ClockOutAsync(shift.Id);
       }
       if (clocking) ImGui.EndDisabled();
     }

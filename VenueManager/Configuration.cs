@@ -20,6 +20,10 @@ namespace VenueManager
   {
     public int Version { get; set; } = 0;
 
+    // Last plugin version the user saw the changelog for.
+    // When this differs from the current version, show the changelog on open.
+    public string LastSeenVersion { get; set; } = string.Empty;
+
     // Should chat message alerts be printed to the chat
     public bool showChatAlerts { get; set; } = false;
     public bool showChatAlertEntry { get; set; } = true;

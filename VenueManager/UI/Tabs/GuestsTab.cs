@@ -7,6 +7,7 @@ using Dalamud.Interface.Components;
 using Dalamud.Interface.Internal;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
+using VenueManager.UI;
 using VenueManager.Widgets;
 
 namespace VenueManager.Tabs;
@@ -30,25 +31,26 @@ public class GuestsTab
       if (plugin.venueList.venues.ContainsKey(plugin.pluginState.currentHouse.houseId))
       {
         var venue = plugin.venueList.venues[plugin.pluginState.currentHouse.houseId];
-        ImGui.Text("You are at " + venue.name);
+        ImGui.TextColored(Colors.XivSubtext0, "You are at ");
+        ImGui.SameLine(0, 4f);
+        ImGui.TextColored(Colors.XivBlue, venue.name);
       }
       else
       {
         var typeText = "";
         if (plugin.pluginState.currentHouse.plot > 0) typeText += "P" + plugin.pluginState.currentHouse.plot;
         if (plugin.pluginState.currentHouse.room > 0) typeText += "Room" + plugin.pluginState.currentHouse.room;
-        ImGui.Text("You are in a " + TerritoryUtils.getHouseType(plugin.pluginState.currentHouse.type) + " in " +
+        ImGui.TextColored(Colors.XivSubtext0, "You are in a " + TerritoryUtils.getHouseType(plugin.pluginState.currentHouse.type) + " in " +
           plugin.pluginState.currentHouse.district + " W" + plugin.pluginState.currentHouse.ward + " " + typeText);
       }
 
-      // List the number of players in the house
-      ImGui.TextWrapped($"There are currently {plugin.pluginState.playersInHouse} patrons inside (out of {plugin.getCurrentGuestList().guests.Count} total visitors)");
+      ImGui.TextColored(Colors.XivSubtext0, $"{plugin.pluginState.playersInHouse} patrons inside  ·  {plugin.getCurrentGuestList().guests.Count} total visitors");
     }
     else
     {
-      ImGui.Text("You are not in a house.");
+      ThemeManager.EmptyState("You are not in a house.");
     }
-    if (plugin.pluginState.snoozed) ImGui.TextColored(new Vector4(.82f, .5f, .04f, 1f), "Alarms snoozed");
+    if (plugin.pluginState.snoozed) ImGui.TextColored(Colors.StatusWarn, "Alarms snoozed");
     ImGui.Spacing();
     ImGui.Separator();
     ImGui.Spacing();
@@ -58,11 +60,11 @@ public class GuestsTab
       if (plugin.venueList.venues.ContainsKey(plugin.pluginState.currentHouse.houseId))
       {
         var venue = plugin.venueList.venues[plugin.pluginState.currentHouse.houseId];
-        ImGui.Text("Patron list for " + venue.name);
+        ThemeManager.SectionHeader("Patron List — " + venue.name);
       }
       else
       {
-        ImGui.Text("This venue is not saved. Not all features will be supported.");
+        ThemeManager.ConfigBanner("This venue is not saved. Not all features will be supported.");
       }
 
       // We are in a saved house, draw guest list for that house
@@ -74,7 +76,7 @@ public class GuestsTab
     }
     else
     {
-      ImGui.Text("Patron list will be shown when you enter a house");
+      ThemeManager.EmptyState("Enter a house to see the patron list.");
     }
   }
 }

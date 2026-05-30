@@ -1,4 +1,5 @@
 using Dalamud.Bindings.ImGui;
+using VenueManager.UI;
 using VenueManager.Widgets;
 
 namespace VenueManager.Tabs;
@@ -25,7 +26,7 @@ public class GuestLogTab
       displayName = plugin.venueList.venues[selectVenue].name;
     }
 
-    ImGui.Text("Select venue to display patron log for:");
+    ImGui.TextColored(Colors.XivSubtext0, "Select venue to display patron log for:");
     // Combo box of all venues
     if (ImGui.BeginCombo("##VenueForLogs", displayName))
     {
@@ -49,7 +50,7 @@ public class GuestLogTab
 
     if (selectVenue != 0)
       this.guestListWidget.draw(selectVenue);
-    else 
-      ImGui.Text("Please select a venue");
+    else
+      ThemeManager.EmptyState("Select a venue above to view patron history.");
   }
 }

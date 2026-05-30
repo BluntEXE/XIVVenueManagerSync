@@ -52,6 +52,7 @@ namespace VenueManager
     public WindowSystem WindowSystem = new("VenueManager");
     private MainWindow MainWindow { get; init; }
     private NotesWindow NotesWindow { get; init; }
+    private ChangelogWindow ChangelogWindow { get; init; }
 
     private Stopwatch stopwatch = new();
     private DoorbellSound doorbell;
@@ -199,11 +200,21 @@ namespace VenueManager
           _ = AutoLoadXivAppDataAsync();
       }
 
-      MainWindow = new MainWindow(this);
-      NotesWindow = new NotesWindow(this);
+      MainWindow     = new MainWindow(this);
+      NotesWindow    = new NotesWindow(this);
+      ChangelogWindow = new ChangelogWindow();
 
       WindowSystem.AddWindow(MainWindow);
       WindowSystem.AddWindow(NotesWindow);
+      WindowSystem.AddWindow(ChangelogWindow);
+
+      // Show changelog automatically when the plugin updates.
+      if (Configuration.LastSeenVersion != PluginVersion)
+      {
+        Configuration.LastSeenVersion = PluginVersion;
+        Configuration.Save();
+        ChangelogWindow.IsOpen = true;
+      }
 
       CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open venue manager interface to see patrons list and manage venues" });
       CommandManager.AddHandler(CommandNameAlias, new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /xvenue" });
@@ -290,6 +301,7 @@ namespace VenueManager
 
       MainWindow.Dispose();
       NotesWindow.Dispose();
+      ChangelogWindow.Dispose();
 
       CommandManager.RemoveHandler(CommandName);
       CommandManager.RemoveHandler(CommandNameAlias);
@@ -610,6 +622,7 @@ namespace VenueManager
 
     public void ToggleConfigUI() => MainWindow.Toggle();
     public void ToggleMainUI() => MainWindow.Toggle();
+    public void OpenChangelog()  => ChangelogWindow.IsOpen = true;
 
     private unsafe void OnTerritoryChanged(uint territory)
     {

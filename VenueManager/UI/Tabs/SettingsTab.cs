@@ -32,7 +32,7 @@ public class SettingsTab
   // Fetch* methods below. Default color is the muted overlay so a fresh
   // "Fetching…" line reads as in-progress, not success/failure.
   private string xivAppStatus = "";
-  private Vector4 xivAppStatusColor = Colors.CatOverlay0;
+  private Vector4 xivAppStatusColor = Colors.XivOverlay0;
 
   // UI-only toggle — not persisted. Keys are sensitive; default hidden so
   // screenshots/shares don't leak. Flipped by the eye icon next to the input.
@@ -87,8 +87,27 @@ public class SettingsTab
     DrawSectionSeparator();
     DrawDebugInfo();
 
+    DrawSectionSeparator();
+    DrawAboutSection();
+
     ImGui.Unindent();
     ImGui.EndChild();
+  }
+
+  private void DrawAboutSection()
+  {
+    DrawSectionHeader("About");
+    ImGui.TextColored(Colors.XivSubtext0, $"XIV Venue Manager Sync  v{plugin.PluginVersion}  by Ehno");
+    ImGui.Spacing();
+    float btnW = (ImGui.GetContentRegionAvail().X - ImGui.GetStyle().ItemSpacing.X) / 2f;
+    if (ImGui.Button("What's New", new Vector2(btnW, 0)))
+      plugin.OpenChangelog();
+    ImGui.SameLine();
+    if (ImGui.Button("GitHub", new Vector2(btnW, 0)))
+      System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo {
+        FileName = "https://github.com/BluntEXE/XIVVenueManagerSync",
+        UseShellExecute = true
+      });
   }
 
   // -- Section helpers ------------------------------------------------------
@@ -104,7 +123,7 @@ public class SettingsTab
   // Blue accent lets users scan section boundaries at a glance on a long tab.
   private static void DrawSectionHeader(string label)
   {
-    ImGui.TextColored(Colors.CatBlue, label);
+    ImGui.TextColored(Colors.XivBlue, label);
   }
 
   // -- Tab Visibility -------------------------------------------------------
@@ -470,7 +489,7 @@ public class SettingsTab
 
   private void DrawWelcomeBanner()
   {
-    ImGui.TextColored(Colors.CatCatGreen, "Welcome to XIV Venue Manager Sync!");
+    ImGui.TextColored(Colors.XivGreen, "Welcome to XIV Venue Manager Sync!");
     ImGui.TextWrapped("To get started, you'll need an API key from xivvenuemanager.com.");
     ImGui.Spacing();
     ImGui.TextWrapped("1. Log in with Discord at xivvenuemanager.com");
@@ -489,7 +508,7 @@ public class SettingsTab
   public unsafe void DrawXivAppSettings()
   {
     DrawSectionHeader("XIV-App Sync");
-    ImGui.TextColored(Colors.CatSubtext0, "Sync patrons, sales, and shifts with xivvenuemanager.com.");
+    ImGui.TextColored(Colors.XivSubtext0, "Sync patrons, sales, and shifts with xivvenuemanager.com.");
     ImGui.Spacing();
 
     var syncEnabled = this.configuration.syncToXivApp;
@@ -668,7 +687,7 @@ public class SettingsTab
   private async Task LoadVenueDataWithFeedbackAsync(string venueId, string venueName)
   {
     xivAppStatus = $"Loading roles + services for {venueName}…";
-    xivAppStatusColor = Colors.CatOverlay0;
+    xivAppStatusColor = Colors.XivOverlay0;
 
     await FetchXivAppRolesAsync(venueId);
     await FetchXivAppServicesAsync(venueId);
@@ -724,7 +743,7 @@ public class SettingsTab
       }
 
       xivAppStatus = "Fetching…";
-      xivAppStatusColor = Colors.CatOverlay0;
+      xivAppStatusColor = Colors.XivOverlay0;
 
       plugin.xivAppVenues = await plugin.xivAppClient.Venue.GetVenuesAsync();
       Plugin.Log.Information("Fetched {Count} venues from XIV-App", plugin.xivAppVenues.Count);

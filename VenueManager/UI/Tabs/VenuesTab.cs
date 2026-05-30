@@ -7,12 +7,12 @@ using Dalamud.Interface.Components;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Bindings.ImGui;
+using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
 public class VenuesTab
 {
-  private readonly Vector4 colorGreen = new(0, 0.69f, 0, 1);
   private Plugin plugin;
 
   // Venue name inside input box 
@@ -77,7 +77,7 @@ public class VenuesTab
     ImGui.Separator();
     ImGui.Spacing();
 
-    ImGui.Text("Save the current venue you are in to the list of venues");
+    ImGui.TextColored(Colors.XivSubtext0, "Save the current venue you are in to the list of venues");
     ImGui.InputTextWithHint("", "Enter venue name", ref venueName, 256);
     ImGui.SameLine();
     // Only allow saving venue if name is entered, user is in a house, and current house id is not in list 
@@ -152,7 +152,7 @@ public class VenuesTab
       foreach (var venue in venues)
       {
         var fontColor = plugin.pluginState.userInHouse && plugin.pluginState.currentHouse.houseId == venue.Value.houseId ?
-          colorGreen : new Vector4(1, 1, 1, 1);
+          Colors.XivGreen : Colors.XivText;
 
         ImGui.TableNextColumn();
         if (ImGuiComponents.IconButton("##Copy" + venue.Value.houseId, FontAwesomeIcon.Copy))
