@@ -1106,7 +1106,9 @@ namespace VenueManager
       // Auto-greeter fires independently of chat alert settings and snooze —
       // the greeter may want tells without the visual chat noise.
       // Skips already-here players when the greeter re-enters the venue.
-      if (!justEnteredHouse)
+      // Only fires at registered venues while a shift is active.
+      var shift = activeShift;
+      if (!justEnteredHouse && knownVenue && shift != null && shift.Status == "ACTIVE")
       {
         if (player.entryCount == 1 && Configuration.enableGreeterMode && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
           SendGameChat($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");

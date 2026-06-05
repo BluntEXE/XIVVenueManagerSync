@@ -15,7 +15,13 @@ public class ChangelogWindow : Window, IDisposable
 
     private static readonly ChangelogEntry[] Entries =
     [
-        new("v3.8.0", "May 2026", "Full UI Redesign", IsCurrent: true,
+        new("v3.8.4", "June 2026", "Greeter Safety Fix", IsCurrent: true,
+        [
+            "Auto-greeter now only fires at registered venues while a shift is active",
+            "Prevents welcome tells from sending when visiting other players' houses",
+        ]),
+
+        new("v3.8.0 – v3.8.3", "May–June 2026", "Full UI Redesign", IsCurrent: false,
         [
             "Complete visual overhaul — XIV blue design system matching xivvenuemanager.com",
             "Icon sidebar navigation replaces horizontal tab bar",
