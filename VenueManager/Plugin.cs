@@ -510,7 +510,7 @@ namespace VenueManager
       }
       try
       {
-        var shifts = await xivAppClient.Shift.GetMyShiftsAsync(currentXivAppVenueId);
+        var shifts = (await xivAppClient.Shift.GetShiftsResponseAsync(currentXivAppVenueId)).Shifts;
         var scheduled = shifts.Find(s => s.Status == "SCHEDULED");
 
         if (scheduled == null)
@@ -563,7 +563,7 @@ namespace VenueManager
       }
       try
       {
-        var shifts = await xivAppClient.Shift.GetMyShiftsAsync(currentXivAppVenueId);
+        var shifts = (await xivAppClient.Shift.GetShiftsResponseAsync(currentXivAppVenueId)).Shifts;
         var active = shifts.Find(s => s.Status == "ACTIVE");
 
         if (active == null)
@@ -596,7 +596,7 @@ namespace VenueManager
     }
 
     // Expires the DTR shift-poll cooldown so the next framework tick
-    // triggers a fresh GetMyShiftsAsync. Called after any successful clock
+    // triggers a fresh GetShiftsResponseAsync. Called after any successful clock
     // action so the DTR label reflects the new state within one frame
     // rather than waiting up to 30s for the normal interval to expire.
     public void InvalidateShiftPollCache() => lastShiftPollMs = 0;
@@ -859,7 +859,7 @@ namespace VenueManager
       {
         try
         {
-          var list = await xivAppClient.Shift.GetMyShiftsAsync(currentXivAppVenueId);
+          var list = (await xivAppClient.Shift.GetShiftsResponseAsync(currentXivAppVenueId)).Shifts;
           ShiftDto? pick = null;
           foreach (var s in list)
           {

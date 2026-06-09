@@ -5,8 +5,8 @@
   "Description": "In-game companion for XIV Venue Manager, a venue-management platform for FFXIV player-run venues (xivvenuemanager.com). Tracks patron entry and exit at your venue, logs sales and services to your web dashboard in real time, and keeps guest lists in sync with the staff, roles, and services you configure on the website. Set up an account at xivvenuemanager.com, generate an API key from the dashboard, and paste it into this plugin's Settings tab to start syncing.",
   "ApplicableVersion": "any",
   "InternalName": "XIVVenueManagerSync",
-  "AssemblyVersion": "3.8.7",
-  "Changelog": "v3.8.7: Fixed World and Data Center showing as Dev/Unknown in the Venues tab.\nv3.8.6: Improved API request compatibility with CDN layers.",
+  "AssemblyVersion": "3.8.8",
+  "Changelog": "v3.8.8: Staff can now claim open shifts directly from the Shifts tab.\nv3.8.7: Fixed World and Data Center showing as Dev/Unknown in the Venues tab.\nv3.8.6: Improved API request compatibility with CDN layers.",
   "RepoUrl": "https://github.com/BluntEXE/XIVVenueManagerSync",
   "Tags": [
     "venue",

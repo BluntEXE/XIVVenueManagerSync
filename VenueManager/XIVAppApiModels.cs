@@ -173,10 +173,28 @@ namespace VenueManager
     public string? Notes { get; set; }
   }
 
+  public class OpenShiftDto
+  {
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("scheduledStart")]
+    public string ScheduledStart { get; set; } = "";
+
+    [JsonPropertyName("scheduledEnd")]
+    public string ScheduledEnd { get; set; } = "";
+
+    [JsonPropertyName("roleName")]
+    public string? RoleName { get; set; }
+  }
+
   public class ShiftsResponse
   {
     [JsonPropertyName("shifts")]
     public List<ShiftDto> Shifts { get; set; } = new();
+
+    [JsonPropertyName("openShifts")]
+    public List<OpenShiftDto> OpenShifts { get; set; } = new();
   }
 
   public class ClockResult

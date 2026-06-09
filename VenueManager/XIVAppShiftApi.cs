@@ -15,9 +15,10 @@ namespace VenueManager
       _client = client;
     }
 
-    public async Task<List<ShiftDto>> GetMyShiftsAsync(string venueId)
+    public async Task<ShiftsResponse> GetShiftsResponseAsync(string venueId)
     {
-      if (!_client.IsConfigured) return new List<ShiftDto>();
+      var empty = new ShiftsResponse();
+      if (!_client.IsConfigured) return empty;
       try
       {
         var response = await _client.Http.GetAsync(
@@ -25,15 +26,36 @@ namespace VenueManager
         if (!response.IsSuccessStatusCode)
         {
           Plugin.Log.Warning($"Failed to get shifts: {response.StatusCode}");
-          return new List<ShiftDto>();
+          return empty;
         }
-        var result = await response.Content.ReadFromJsonAsync<ShiftsResponse>();
-        return result?.Shifts ?? new List<ShiftDto>();
+        return await response.Content.ReadFromJsonAsync<ShiftsResponse>() ?? empty;
       }
       catch (Exception ex)
       {
         Plugin.Log.Warning($"Error fetching shifts: {ex.Message}");
-        return new List<ShiftDto>();
+        return empty;
+      }
+    }
+
+    public async Task<ClockResult> ClaimShiftAsync(string shiftId)
+    {
+      if (!_client.IsConfigured)
+        return new ClockResult { Success = false, Error = "API not configured" };
+      try
+      {
+        var payload = new { shiftId };
+        var response = await _client.Http.PostAsJsonAsync(
+          $"{_client.BaseUrl}/api/plugin/shifts/claim", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+          var body = await response.Content.ReadAsStringAsync();
+          return new ClockResult { Success = false, Error = body };
+        }
+        return new ClockResult { Success = true, Status = "CLAIMED" };
+      }
+      catch (Exception ex)
+      {
+        return new ClockResult { Success = false, Error = ex.Message };
       }
     }
 

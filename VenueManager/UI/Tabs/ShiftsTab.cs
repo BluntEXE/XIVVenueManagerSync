@@ -14,6 +14,7 @@ public class ShiftsTab
   private Plugin plugin;
 
   private List<ShiftDto> shifts = new();
+  private List<OpenShiftDto> openShifts = new();
   private bool loading = false;
   private bool clocking = false;
   private string statusMessage = string.Empty;
@@ -27,6 +28,7 @@ public class ShiftsTab
   private static readonly Vector4 ColorActive   = Colors.XivGreen;
   private static readonly Vector4 ColorUpcoming = Colors.XivSubtext0;
   private static readonly Vector4 ColorComplete = Colors.XivOverlay0;
+  private static readonly Vector4 ColorOpen     = new Vector4(1.0f, 0.75f, 0.0f, 1.0f); // amber
 
   public ShiftsTab(Plugin plugin)
   {
@@ -73,11 +75,20 @@ public class ShiftsTab
 
     ImGui.Separator();
 
-    if (shifts.Count == 0 && !loading)
+    if (shifts.Count == 0 && openShifts.Count == 0 && !loading)
     {
       ThemeManager.EmptyState("No shifts scheduled.");
       ImGui.EndChild();
       return;
+    }
+
+    // --- Open shifts available to claim ---
+    if (openShifts.Count > 0)
+    {
+      ImGui.Spacing();
+      ThemeManager.SectionHeader("OPEN SHIFTS", ColorOpen);
+      foreach (var shift in openShifts)
+        drawOpenShiftRow(shift);
     }
 
     // Render shifts grouped: active first, then upcoming, then completed
@@ -126,6 +137,50 @@ public class ShiftsTab
     }
 
     ImGui.EndChild();
+  }
+
+  private void drawOpenShiftRow(OpenShiftDto shift)
+  {
+    if (!DateTime.TryParse(shift.ScheduledStart, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var startUtc)
+     || !DateTime.TryParse(shift.ScheduledEnd,   CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var endUtc))
+    {
+      ImGui.TextDisabled($"(invalid shift data)");
+      return;
+    }
+    var start = startUtc.ToLocalTime();
+    var end   = endUtc.ToLocalTime();
+
+    string timeLabel;
+    if (start.Date == DateTime.Today)
+      timeLabel = $"Today  {start:h:mm tt} — {end:h:mm tt}";
+    else if (start.Date == DateTime.Today.AddDays(1))
+      timeLabel = $"Tomorrow  {start:h:mm tt} — {end:h:mm tt}";
+    else
+      timeLabel = $"{start:MMM d}  {start:h:mm tt} — {end:h:mm tt}";
+
+    ImGui.TextColored(ColorOpen, timeLabel);
+
+    if (!string.IsNullOrEmpty(shift.RoleName))
+    {
+      ImGui.SameLine();
+      ImGui.TextDisabled($"({shift.RoleName})");
+    }
+
+    string btnLabel = $"Claim##{shift.Id}";
+    float btnWidth = ImGui.CalcTextSize("Claim").X + ImGui.GetStyle().FramePadding.X * 2;
+    float rightEdge = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX();
+    ImGui.SameLine();
+    ImGui.SetCursorPosX(rightEdge - btnWidth);
+
+    if (clocking) ImGui.BeginDisabled();
+    using (ThemeManager.PrimaryButton())
+    {
+      if (ImGui.SmallButton(btnLabel))
+        _ = ClaimAsync(shift.Id);
+    }
+    if (clocking) ImGui.EndDisabled();
+
+    ImGui.Spacing();
   }
 
   private void drawShiftRow(ShiftDto shift)
@@ -230,7 +285,9 @@ public class ShiftsTab
     loading = true;
     try
     {
-      shifts = await plugin.xivAppClient.Shift.GetMyShiftsAsync(plugin.currentXivAppVenueId);
+      var response = await plugin.xivAppClient.Shift.GetShiftsResponseAsync(plugin.currentXivAppVenueId);
+      shifts = response.Shifts;
+      openShifts = response.OpenShifts;
       lastFetch = DateTime.Now;
     }
     catch (Exception ex)
@@ -240,6 +297,46 @@ public class ShiftsTab
     finally
     {
       loading = false;
+    }
+  }
+
+  private async Task ClaimAsync(string shiftId)
+  {
+    if (plugin.xivAppClient == null) return;
+    if (!await plugin.clockSem.WaitAsync(0))
+    {
+      statusMessage = "An action is already in progress.";
+      statusIsError = true;
+      return;
+    }
+    clocking = true;
+    statusMessage = "Claiming shift...";
+    statusIsError = false;
+
+    try
+    {
+      var result = await plugin.xivAppClient.Shift.ClaimShiftAsync(shiftId);
+      if (result.Success)
+      {
+        statusMessage = "Shift claimed! Waiting for manager approval.";
+        statusIsError = false;
+        _ = FetchShiftsAsync();
+      }
+      else
+      {
+        statusMessage = $"Claim failed: {result.Error ?? "unknown"}";
+        statusIsError = true;
+      }
+    }
+    catch (Exception ex)
+    {
+      statusMessage = $"Error: {ex.Message}";
+      statusIsError = true;
+    }
+    finally
+    {
+      clocking = false;
+      plugin.clockSem.Release();
     }
   }
 
