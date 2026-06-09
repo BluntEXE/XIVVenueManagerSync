@@ -915,11 +915,13 @@ namespace VenueManager
               if (pluginState.currentHouse.houseId != (long)housingManager->GetCurrentIndoorHouseId().Id)
               {
                 pluginState.currentHouse.houseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
-                pluginState.currentHouse.plot = housingManager->GetCurrentPlot() + 1; // Game stores plot as -1 
-                pluginState.currentHouse.ward = housingManager->GetCurrentWard() + 1; // Game stores ward as -1 
+                pluginState.currentHouse.plot = housingManager->GetCurrentPlot() + 1; // Game stores plot as -1
+                pluginState.currentHouse.ward = housingManager->GetCurrentWard() + 1; // Game stores ward as -1
                 pluginState.currentHouse.room = housingManager->GetCurrentRoom();
                 pluginState.currentHouse.type = (ushort)HousingManager.GetOriginalHouseTerritoryTypeId();
                 pluginState.currentHouse.district = TerritoryUtils.getDistrict((long)housingManager->GetCurrentIndoorHouseId().Id);
+                if (Objects[0] is IPlayerCharacter localPlayer)
+                  pluginState.currentHouse.worldId = localPlayer.CurrentWorld.Value.RowId;
 
                 // Load current guest list from disk if player has entered a saved venue 
                 if (venueList.venues.ContainsKey(pluginState.currentHouse.houseId))
