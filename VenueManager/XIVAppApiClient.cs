@@ -23,7 +23,6 @@ namespace VenueManager
     public XIVAppApiClient()
     {
       Http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-      Http.DefaultRequestHeaders.UserAgent.ParseAdd("XIVVenueManager/1.0");
       Venue  = new XIVAppVenueApi(this);
       Patron = new XIVAppPatronApi(this);
       Shift  = new XIVAppShiftApi(this);
@@ -35,6 +34,10 @@ namespace VenueManager
       BaseUrl = (serverUrl ?? "").Trim().TrimEnd('/');
 
       Http.DefaultRequestHeaders.Clear();
+      // Re-add static headers after Clear() — these survive API key changes
+      Http.DefaultRequestHeaders.UserAgent.ParseAdd("XIVVenueManager/1.0");
+      Http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, */*");
+      Http.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
       if (!string.IsNullOrEmpty(_apiKey))
       {
         // TryAddWithoutValidation avoids FormatException on stray whitespace
