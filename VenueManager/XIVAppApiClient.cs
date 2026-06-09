@@ -23,6 +23,7 @@ namespace VenueManager
     public XIVAppApiClient()
     {
       Http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+      Http.DefaultRequestHeaders.UserAgent.ParseAdd("XIVVenueManager/1.0");
       Venue  = new XIVAppVenueApi(this);
       Patron = new XIVAppPatronApi(this);
       Shift  = new XIVAppShiftApi(this);
