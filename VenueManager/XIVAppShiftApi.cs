@@ -51,7 +51,16 @@ namespace VenueManager
           var body = await response.Content.ReadAsStringAsync();
           return new ClockResult { Success = false, Error = body };
         }
-        return new ClockResult { Success = true, Status = "CLAIMED" };
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var status = "CLAIMED";
+        if (json.TryGetProperty("shift", out var shiftEl)
+            && shiftEl.TryGetProperty("status", out var statusEl)
+            && statusEl.ValueKind == JsonValueKind.String)
+        {
+          status = statusEl.GetString() ?? status;
+        }
+        var merged = json.TryGetProperty("merged", out var mergedEl) && mergedEl.ValueKind == JsonValueKind.True;
+        return new ClockResult { Success = true, Status = status, Merged = merged };
       }
       catch (Exception ex)
       {
