@@ -127,13 +127,14 @@ public class VenuesTab
                    | ImGuiTableFlags.ScrollX
                    | ImGuiTableFlags.BordersInnerV
                    | ImGuiTableFlags.RowBg;
-    if (ImGui.BeginTable("Venues", 12, tableFlags))
+    if (ImGui.BeginTable("Venues", 13, tableFlags))
     {
       // Column default widths — WidthStretch shares the remaining space
       // after fixed columns. We give Notes the widest default because
       // that's the most common "I can't read this" offender.
-      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 24);
-      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 24);
+      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 24); // teleport
+      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 24); // copy
+      ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 24); // house icon
       ImGui.TableSetupColumn("Name",       ImGuiTableColumnFlags.WidthStretch, 160);
       ImGui.TableSetupColumn("District",   ImGuiTableColumnFlags.WidthStretch, 110);
       ImGui.TableSetupColumn("Ward",       ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoSort, 40);
@@ -153,6 +154,21 @@ public class VenuesTab
       {
         var fontColor = plugin.pluginState.userInHouse && plugin.pluginState.currentHouse.houseId == venue.Value.houseId ?
           Colors.XivGreen : Colors.XivText;
+
+        ImGui.TableNextColumn();
+        var lifestream = plugin.LifestreamIpc;
+        if (!lifestream.IsAvailable) ImGui.BeginDisabled();
+        if (ImGuiComponents.IconButton("##Teleport" + venue.Value.houseId, FontAwesomeIcon.MapMarkerAlt))
+        {
+          lifestream.TeleportToVenue(venue.Value);
+        }
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+          ImGui.SetTooltip(lifestream.IsAvailable
+            ? $"Teleport to {venue.Value.name} (via Lifestream)"
+            : "Requires Lifestream plugin");
+        }
+        if (!lifestream.IsAvailable) ImGui.EndDisabled();
 
         ImGui.TableNextColumn();
         if (ImGuiComponents.IconButton("##Copy" + venue.Value.houseId, FontAwesomeIcon.Copy))

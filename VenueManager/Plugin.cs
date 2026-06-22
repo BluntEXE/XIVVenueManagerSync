@@ -47,6 +47,7 @@ namespace VenueManager
     public PluginState pluginState { get; init; }
     public VenueList venueList { get; init; }
     public Dictionary<long, GuestList> guestLists = new();
+    public LifestreamIpc LifestreamIpc { get; private set; } = null!;
 
     // Windows
     public WindowSystem WindowSystem = new("VenueManager");
@@ -200,6 +201,7 @@ namespace VenueManager
           _ = AutoLoadXivAppDataAsync();
       }
 
+      LifestreamIpc  = new LifestreamIpc();
       MainWindow     = new MainWindow(this);
       NotesWindow    = new NotesWindow(this);
       ChangelogWindow = new ChangelogWindow();
@@ -283,6 +285,7 @@ namespace VenueManager
       PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUI;
       PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUI;
       ClientState.Logout -= OnLogout;
+      LifestreamIpc?.Dispose();
       xivAppClient?.Dispose();
 
       // Remove framework listener on close
