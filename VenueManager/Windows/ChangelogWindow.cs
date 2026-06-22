@@ -15,7 +15,15 @@ public class ChangelogWindow : Window, IDisposable
 
     private static readonly ChangelogEntry[] Entries =
     [
-        new("v3.8.4", "June 2026", "Greeter Safety Fix", IsCurrent: true,
+        new("v3.9.0", "June 2026", "Lifestream Teleport", IsCurrent: true,
+        [
+            "Adds a teleport button to each venue row in the Venues tab",
+            "Requires Lifestream; appears disabled with a tooltip if not installed",
+            "Works across worlds and data centres where the game permits travel",
+            "Note: venues saved before this update may show 'dev' as world name. Re-save them from inside the housing plot to fix.",
+        ]),
+
+        new("v3.8.4", "June 2026", "Greeter Safety Fix", IsCurrent: false,
         [
             "Auto-greeter now only fires at registered venues while a shift is active",
             "Prevents welcome tells from sending when visiting other players' houses",
