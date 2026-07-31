@@ -68,8 +68,8 @@ public class MainWindow : Window, IDisposable
     }
 
     // Forward a prefill request to the Sales tab.
-    public void PrefillSale(int? amount, string? customer)
-        => salesTab.Prefill(amount, customer);
+    public void PrefillSale(int? amount, string? customer, bool tip = false)
+        => salesTab.Prefill(amount, customer, tip);
 
     public override void Draw()
     {

@@ -75,16 +75,19 @@ namespace VenueManager
     }
 
     /// <summary>
-    /// Log a sale at a venue. Posts to /api/plugin/transactions. The
-    /// serviceId and notes are optional; customerName is optional but
-    /// strongly encouraged so the webhook embed has a real name to show.
+    /// Log a sale (or other transaction type) at a venue. Posts to
+    /// /api/plugin/transactions. The serviceId and notes are optional;
+    /// customerName is optional but strongly encouraged so the webhook
+    /// embed has a real name to show. type defaults to "SALE" server-side
+    /// when omitted - pass "TIP" to log a tip instead.
     /// </summary>
     public async Task<LogTransactionResult> LogTransactionAsync(
       string venueId,
       string? serviceId,
       decimal amount,
       string? customerName = null,
-      string? notes = null)
+      string? notes = null,
+      string? type = null)
     {
       if (!_client.IsConfigured)
         return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
@@ -98,6 +101,7 @@ namespace VenueManager
           Amount = amount,
           CustomerName = customerName,
           Notes = notes,
+          Type = type,
         };
         var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/transactions", request);
         if (!response.IsSuccessStatusCode)

@@ -15,7 +15,13 @@ public class ChangelogWindow : Window, IDisposable
 
     private static readonly ChangelogEntry[] Entries =
     [
-        new("v3.9.1", "July 2026", "Patron Tracking Fixes", IsCurrent: true,
+        new("v3.9.2", "July 2026", "Tips & Venue Name Fix", IsCurrent: true,
+        [
+            "Added tip logging — a Sale/Tip toggle in the Sales tab, plus /xvm tip [amount] [customer] and /xvm tip! <amount> [customer] chat commands",
+            "Fixed the main window header always showing '(no venue)' even while standing in a registered venue — the venue name was never actually being set",
+        ]),
+
+        new("v3.9.1", "July 2026", "Patron Tracking Fixes", IsCurrent: false,
         [
             "Fixed patron counts inflating after a plugin restart mid-event — the guest list restored from disk no longer sends a false 'leave' for people you're still standing next to",
             "Fixed duplicate entries when multiple staff plugins see the same patron arrive or leave — the server now checks the patron's actual last known state instead of a short time window",

@@ -141,6 +141,12 @@ namespace VenueManager
     [JsonPropertyName("notes")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Notes { get; set; }
+
+    // Server's zod schema is optional().default("SALE") - same null-vs-
+    // undefined caveat as the fields above, omit rather than send null.
+    [JsonPropertyName("type")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Type { get; set; }
   }
 
   public class LogTransactionResult

@@ -230,12 +230,16 @@ namespace VenueManager
       // actual routing lives in OnCommand's args parser.
       var SaleHelp    = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab. Usage: /xvm sale [amount] [customer]" };
       var SaleBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale without opening UI. Usage: /xvm sale! <amount> [customer]" };
+      var TipHelp     = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab, Tip selected. Usage: /xvm tip [amount] [customer]" };
+      var TipBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a tip without opening UI. Usage: /xvm tip! <amount> [customer]" };
       var TargetHelp  = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab prefilled with current target as customer. Usage: /xvm target [amount]" };
       var TargetBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale for your current target without opening UI. Usage: /xvm target! <amount>" };
       var StartHelp      = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock into your current shift. Usage: /xvm start" };
       var EndHelp        = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock out of your active shift. Usage: /xvm end" };
       CommandManager.AddHandler(CommandNameAlias + " sale",    SaleHelp);
       CommandManager.AddHandler(CommandNameAlias + " sale!",   SaleBangHelp);
+      CommandManager.AddHandler(CommandNameAlias + " tip",     TipHelp);
+      CommandManager.AddHandler(CommandNameAlias + " tip!",    TipBangHelp);
       CommandManager.AddHandler(CommandNameAlias + " target",  TargetHelp);
       CommandManager.AddHandler(CommandNameAlias + " target!", TargetBangHelp);
       CommandManager.AddHandler(CommandNameAlias + " start",   StartHelp);
@@ -312,6 +316,8 @@ namespace VenueManager
       CommandManager.RemoveHandler(CommandNameAlias + " snooze");
       CommandManager.RemoveHandler(CommandNameAlias + " sale");
       CommandManager.RemoveHandler(CommandNameAlias + " sale!");
+      CommandManager.RemoveHandler(CommandNameAlias + " tip");
+      CommandManager.RemoveHandler(CommandNameAlias + " tip!");
       CommandManager.RemoveHandler(CommandNameAlias + " target");
       CommandManager.RemoveHandler(CommandNameAlias + " target!");
       CommandManager.RemoveHandler(CommandNameAlias + " start");
@@ -352,9 +358,11 @@ namespace VenueManager
       // /xvm sale 500                → open Sales tab, amount=500
       // /xvm sale 500 Ehno Smith     → open Sales tab, amount=500, customer="Ehno Smith"
       // /xvm sale! 500 Ehno          → log immediately, no UI shown, chat toast on result
+      // /xvm tip 500 Ehno            → open Sales tab, Tip selected, amount=500, customer="Ehno"
+      // /xvm tip! 500 Ehno           → log a tip immediately, no UI shown, chat toast on result
       // /xvm target                  → open Sales tab with current target prefilled
       // /xvm target 500              → open Sales tab with current target + amount
-      if (args.StartsWith("sale") || args.StartsWith("target"))
+      if (args.StartsWith("sale") || args.StartsWith("tip") || args.StartsWith("target"))
       {
         var parts = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var verb = parts.Length > 0 ? parts[0] : "";
@@ -412,6 +420,25 @@ namespace VenueManager
             return;
           }
           _ = LogSaleSilentAsync(parsedAmount.Value, customerFromArgs);
+          return;
+        }
+
+        if (verb == "tip!")
+        {
+          if (parsedAmount == null)
+          {
+            Chat.Print((this.Configuration.showPluginNameInChat ? $"[{Name}] " : "") + "Usage: /xvm tip! <amount> [customer]");
+            return;
+          }
+          _ = LogTipSilentAsync(parsedAmount.Value, customerFromArgs);
+          return;
+        }
+
+        if (verb == "tip")
+        {
+          MainWindow.OpenTab("Sales");
+          MainWindow.PrefillSale(parsedAmount, customerFromArgs, tip: true);
+          MainWindow.IsOpen = true;
           return;
         }
 
@@ -486,6 +513,57 @@ namespace VenueManager
       {
         Log.Error($"LogSaleSilentAsync exception: {ex}");
         Chat.Print(prefix + $"Sale error: {ex.Message}");
+      }
+    }
+
+    // Fire-and-forget tip log used by `/xvm tip!`. Same shape as
+    // LogSaleSilentAsync, just tagged type="TIP" so the server (and the
+    // website's revenue/tips-pool breakdown) counts it separately from a
+    // sale.
+    public async Task LogTipSilentAsync(int amount, string? customer)
+    {
+      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+
+      if (xivAppClient == null || !xivAppClient.IsConfigured)
+      {
+        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
+        return;
+      }
+      if (string.IsNullOrEmpty(currentXivAppVenueId))
+      {
+        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
+        return;
+      }
+
+      try
+      {
+        string? trimmedName = string.IsNullOrWhiteSpace(customer) ? null : customer!.Trim();
+        var result = await xivAppClient.Patron.LogTransactionAsync(
+          currentXivAppVenueId,
+          null,          // no service id from slash path
+          (decimal)amount,
+          trimmedName,
+          null,          // no notes from slash path
+          "TIP"
+        );
+
+        if (result.Success)
+        {
+          SessionSalesTotal += amount;
+          SessionSalesCount++;
+          Chat.Print(prefix + (trimmedName != null
+            ? $"Logged {amount}g tip from {trimmedName}"
+            : $"Logged {amount}g tip"));
+        }
+        else
+        {
+          Chat.Print(prefix + $"Tip failed: {result.Error ?? "unknown error"}");
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"LogTipSilentAsync exception: {ex}");
+        Chat.Print(prefix + $"Tip error: {ex.Message}");
       }
     }
 
@@ -926,13 +1004,32 @@ namespace VenueManager
                 if (Objects[0] is IPlayerCharacter localPlayer)
                   pluginState.currentHouse.worldId = localPlayer.CurrentWorld.Value.RowId;
 
-                // Load current guest list from disk if player has entered a saved venue 
+                // Load current guest list from disk if player has entered a saved venue
                 if (venueList.venues.ContainsKey(pluginState.currentHouse.houseId))
                 {
                   var venue = venueList.venues[pluginState.currentHouse.houseId];
                   GuestList venueGuestList = new GuestList(venue.houseId, venue);
                   venueGuestList.load();
                   guestLists.Add(venue.houseId, venueGuestList);
+                }
+
+                // Resolve display name for the main window header — never
+                // set until now, so the header always showed "(no venue)"
+                // regardless of whether the house was actually registered.
+                // Same precedence as BuildVenueLabel(): xiv-app linked name
+                // first (nicer branding), then the local saved venue name.
+                pluginState.currentHouse.name = "";
+                if (Configuration.houseToXivAppVenue.TryGetValue(pluginState.currentHouse.houseId, out var linkedVenueId))
+                {
+                  var linked = xivAppVenues.Find(x => x.Id == linkedVenueId);
+                  if (linked != null && !string.IsNullOrEmpty(linked.Name))
+                    pluginState.currentHouse.name = linked.Name;
+                }
+                if (string.IsNullOrEmpty(pluginState.currentHouse.name)
+                    && venueList.venues.TryGetValue(pluginState.currentHouse.houseId, out var localVenue)
+                    && !string.IsNullOrEmpty(localVenue.name))
+                {
+                  pluginState.currentHouse.name = localVenue.name;
                 }
               }
             }

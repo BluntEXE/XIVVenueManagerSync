@@ -19,6 +19,7 @@ public class SalesTab
   private string customerName = string.Empty;
   private string amountText = "0";
   private string notes = string.Empty;
+  private bool isTip = false;
 
   // Tracks whether we've already auto-filled customerName from the
   // current target. Without this the field would refill on every draw
@@ -35,10 +36,10 @@ public class SalesTab
     this.plugin = plugin;
   }
 
-  // Accept prefill values from slash commands (/vm sale, /vm target).
-  // Called before the window opens; the next draw() frame picks up
-  // the new field values via normal ImGui immediate-mode reads.
-  public void Prefill(int? amount, string? customer)
+  // Accept prefill values from slash commands (/vm sale, /vm target,
+  // /vm tip). Called before the window opens; the next draw() frame
+  // picks up the new field values via normal ImGui immediate-mode reads.
+  public void Prefill(int? amount, string? customer, bool tip = false)
   {
     if (amount.HasValue)
       amountText = amount.Value.ToString(CultureInfo.InvariantCulture);
@@ -47,6 +48,16 @@ public class SalesTab
       customerName = customer;
       customerPrimed = true; // don't let auto-prime overwrite the explicit value
     }
+    isTip = tip;
+  }
+
+  // Draws one segment of a two-button toggle - highlighted when active.
+  // Returns true the frame it's clicked.
+  private static bool ToggleButton(string label, bool active, float width)
+  {
+    if (!active) return ImGui.Button(label, new Vector2(width, 0));
+    using var _ = ThemeManager.PrimaryButton();
+    return ImGui.Button(label, new Vector2(width, 0));
   }
 
   public void draw()
@@ -67,6 +78,14 @@ public class SalesTab
       ImGui.EndChild();
       return;
     }
+
+    // --- Type toggle -----------------------------------------------------
+    ImGui.TextColored(Colors.XivSubtext0, "Type");
+    float halfW = (ImGui.GetContentRegionAvail().X - ImGui.GetStyle().ItemSpacing.X) / 2f;
+    if (ToggleButton("Sale", !isTip, halfW)) isTip = false;
+    ImGui.SameLine();
+    if (ToggleButton("Tip", isTip, halfW)) isTip = true;
+    ImGui.Spacing();
 
     // --- Service dropdown ---------------------------------------------
     var services = plugin.availableServices;
@@ -147,7 +166,8 @@ public class SalesTab
     if (!canSubmit) ImGui.BeginDisabled();
     using (ThemeManager.PrimaryButton())
     {
-      if (ImGui.Button(submitting ? "Logging..." : "Log Sale", new Vector2(-1, 26f)))
+      string label = submitting ? "Logging..." : (isTip ? "Log Tip" : "Log Sale");
+      if (ImGui.Button(label, new Vector2(-1, 26f)))
         _ = LogSaleAsync(parsedAmount);
     }
     if (!canSubmit) ImGui.EndDisabled();
@@ -212,19 +232,22 @@ public class SalesTab
         serviceId,
         (decimal)amount,
         trimmedName,
-        trimmedNotes
+        trimmedNotes,
+        isTip ? "TIP" : null
       );
 
       if (result.Success)
       {
         // Bump the session tally so the dashboard strip's "💰 Ng" readout
-        // updates the same frame this call returns on.
+        // updates the same frame this call returns on. Tips count toward
+        // the same session total/count as sales - both are gil taken in.
         plugin.SessionSalesTotal += amount;
         plugin.SessionSalesCount++;
 
+        string verb = isTip ? "tip" : "sale";
         statusMessage = trimmedName != null
-          ? $"Logged {amount}g from {trimmedName}"
-          : $"Logged {amount}g";
+          ? $"Logged {amount}g {verb} from {trimmedName}"
+          : $"Logged {amount}g {verb}";
         statusIsError = false;
         // Reset the parts that should change per sale. Keep service
         // selection so rapid-fire logging of the same item stays one
