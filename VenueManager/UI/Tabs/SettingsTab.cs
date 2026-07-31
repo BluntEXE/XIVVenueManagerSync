@@ -140,7 +140,7 @@ public class SettingsTab
 
     // Guest tab sub settings
     if (!this.configuration.showGuestsTab) ImGui.BeginDisabled();
-    ImGui.TextWrapped("Hiding the Patrons Tab will also disable all notifications around patrons entering or leaving.");
+    ImGui.TextWrapped("Hiding the Patrons Tab also disables chat/sound alerts and stops logging patron visits to the XVM Website entirely - no Live dashboard or Analytics data will be recorded while this is off.");
     if (!this.configuration.showGuestsTab) ImGui.EndDisabled();
 
     ImGui.Unindent();
@@ -493,7 +493,7 @@ public class SettingsTab
     ImGui.TextWrapped("To get started, you'll need an API key from xivvenuemanager.com.");
     ImGui.Spacing();
     ImGui.TextWrapped("1. Log in with Discord at xivvenuemanager.com");
-    ImGui.TextWrapped("2. Go to your venue's Settings -> API Keys and create a key");
+    ImGui.TextWrapped("2. Open your venue dashboard, click Settings in the left sidebar (not the top-right account menu), go to API Keys and create a key");
     ImGui.TextWrapped("3. Paste it into the API Key field below");
     ImGui.Spacing();
     if (ImGui.Button("Open xivvenuemanager.com"))

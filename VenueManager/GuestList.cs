@@ -15,6 +15,14 @@ namespace VenueManager
     public Venue venue { get; set; } = new();
     public DateTime startTime { get; set; } = DateTime.Now;
 
+    // True for one framework-update pass immediately after load(). Guests
+    // restored from disk as inHouse=true whose real departure happened in a
+    // prior session (plugin restart, crash, game restart) must not fire a
+    // "leave" sync to the server the moment tracking resumes - we have no
+    // real timestamp for when they actually left, and doing so orphans a
+    // LEAVE with no matching ENTER, permanently skewing venue patron counts.
+    public bool justLoaded { get; set; } = false;
+
     public GuestList()
     {
     }
@@ -62,6 +70,7 @@ namespace VenueManager
       // Don't replace venue if the incoming one is blank
       if (loadedData.venue.name.Length != 0)
         this.venue = loadedData.venue;
+      this.justLoaded = true;
     }
   }
 }

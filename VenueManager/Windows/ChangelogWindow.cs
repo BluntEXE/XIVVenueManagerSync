@@ -15,7 +15,14 @@ public class ChangelogWindow : Window, IDisposable
 
     private static readonly ChangelogEntry[] Entries =
     [
-        new("v3.9.0", "June 2026", "Lifestream Teleport", IsCurrent: true,
+        new("v3.9.1", "July 2026", "Patron Tracking Fixes", IsCurrent: true,
+        [
+            "Fixed patron counts inflating after a plugin restart mid-event — the guest list restored from disk no longer sends a false 'leave' for people you're still standing next to",
+            "Fixed duplicate entries when multiple staff plugins see the same patron arrive or leave — the server now checks the patron's actual last known state instead of a short time window",
+            "Clarified the Patrons Tab warning: hiding it stops all patron logging to the XVM Website, not just chat notifications",
+        ]),
+
+        new("v3.9.0", "June 2026", "Lifestream Teleport", IsCurrent: false,
         [
             "Adds a teleport button to each venue row in the Venues tab",
             "Requires Lifestream; appears disabled with a tooltip if not installed",

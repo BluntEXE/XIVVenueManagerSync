@@ -1023,28 +1023,37 @@ namespace VenueManager
             }
           }
 
-          // Check for guests that have left the house 
+          // Check for guests that have left the house
+          // On the first pass after loading a guest list from disk, guests
+          // restored as inHouse=true who aren't actually here anymore left
+          // during a prior session - reconcile local state silently instead
+          // of syncing a "leave" with no matching "enter" in this session.
+          bool skipLeaveSync = getCurrentGuestList().justLoaded;
           foreach (var guest in getCurrentGuestList().guests)
           {
-            // Guest is marked as in the house 
-            if (guest.Value.inHouse) 
+            // Guest is marked as in the house
+            if (guest.Value.inHouse)
             {
               // Guest was not seen this loop
               if (!seenPlayers.ContainsKey(guest.Value.Name))
               {
                 guest.Value.onLeaveVenue();
                 guestListUpdated = true;
-                showGuestLeaveChatAlert(guest.Value);
-                TryLogPatronVisit(guest.Value.Name, guest.Value.WorldName, "leave");
+                if (!skipLeaveSync)
+                {
+                  showGuestLeaveChatAlert(guest.Value);
+                  TryLogPatronVisit(guest.Value.Name, guest.Value.WorldName, "leave");
+                }
               }
-              // Guest was seen this loop 
-              else 
+              // Guest was seen this loop
+              else
               {
                 guest.Value.onAccumulateTime();
               }
             }
-            
+
           }
+          getCurrentGuestList().justLoaded = false;
 
           // Only play doorbell sound once if there were one or more new people
           if (Configuration.soundAlerts && playerArrived && !pluginState.snoozed)
