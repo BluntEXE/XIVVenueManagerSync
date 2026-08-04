@@ -144,5 +144,56 @@ namespace VenueManager
         return null;
       }
     }
+
+    public async Task<List<Room>> GetRoomsAsync(string venueId)
+    {
+      if (!_client.IsConfigured) return new List<Room>();
+      try
+      {
+        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/rooms?venueId={venueId}");
+        if (!response.IsSuccessStatusCode)
+        {
+          Plugin.Log.Warning($"Failed to get rooms: {response.StatusCode}");
+          return new List<Room>();
+        }
+        var result = await response.Content.ReadFromJsonAsync<RoomsResponse>();
+        return result?.Rooms ?? new List<Room>();
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error fetching rooms: {ex.Message}");
+        return new List<Room>();
+      }
+    }
+
+    public async Task<LogTransactionResult> SetRoomStatusAsync(string venueId, string roomId, bool isOccupied, string? note)
+    {
+      if (!_client.IsConfigured)
+        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
+
+      try
+      {
+        var request = new XIVAppSetRoomStatusRequest
+        {
+          VenueId = venueId,
+          RoomId = roomId,
+          IsOccupied = isOccupied,
+          Note = note,
+        };
+        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/rooms/status", request);
+        if (!response.IsSuccessStatusCode)
+        {
+          var error = await response.Content.ReadAsStringAsync();
+          Plugin.Log.Warning($"Failed to set room status: {response.StatusCode} - {error}");
+          return new LogTransactionResult { Success = false, Error = error };
+        }
+        return new LogTransactionResult { Success = true };
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error setting room status: {ex.Message}");
+        return new LogTransactionResult { Success = false, Error = ex.Message };
+      }
+    }
   }
 }

@@ -97,6 +97,43 @@ namespace VenueManager
     public List<BannedPatron> BannedPatrons { get; set; } = new();
   }
 
+  public class Room
+  {
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("isOccupied")]
+    public bool IsOccupied { get; set; }
+
+    [JsonPropertyName("note")]
+    public string? Note { get; set; }
+  }
+
+  public class RoomsResponse
+  {
+    [JsonPropertyName("rooms")]
+    public List<Room> Rooms { get; set; } = new();
+  }
+
+  public class XIVAppSetRoomStatusRequest
+  {
+    [JsonPropertyName("venueId")]
+    public string VenueId { get; set; } = "";
+
+    [JsonPropertyName("roomId")]
+    public string RoomId { get; set; } = "";
+
+    [JsonPropertyName("isOccupied")]
+    public bool IsOccupied { get; set; }
+
+    [JsonPropertyName("note")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Note { get; set; }
+  }
+
   public class XIVAppVenuesResponse
   {
     [JsonPropertyName("venues")]
