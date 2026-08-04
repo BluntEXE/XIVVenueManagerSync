@@ -20,8 +20,9 @@ public class MainWindow : Window, IDisposable
     private GuestLogTab guestLogTab;
     private SalesTab salesTab;
     private ShiftsTab shiftsTab;
+    private RoomsTab roomsTab;
 
-    private enum Tab { Patrons, Sales, History, Shift, Venues, Settings }
+    private enum Tab { Patrons, Sales, History, Shift, Rooms, Venues, Settings }
     private Tab _currentTab = Tab.Sales;
 
     // Sidebar layout constants
@@ -48,6 +49,7 @@ public class MainWindow : Window, IDisposable
         this.guestLogTab   = new GuestLogTab(plugin);
         this.salesTab      = new SalesTab(plugin);
         this.shiftsTab     = new ShiftsTab(plugin);
+        this.roomsTab      = new RoomsTab(plugin);
     }
 
     public void Dispose() { }
@@ -61,6 +63,7 @@ public class MainWindow : Window, IDisposable
             "Sales"    => Tab.Sales,
             "History"  => Tab.History,
             "My Shift" => Tab.Shift,
+            "Rooms"    => Tab.Rooms,
             "Venues"   => Tab.Venues,
             "Settings" => Tab.Settings,
             _          => _currentTab,
@@ -178,6 +181,8 @@ public class MainWindow : Window, IDisposable
 
         navButton(Tab.Shift,   FontAwesomeIcon.CalendarCheck,   "My Shift");
 
+        navButton(Tab.Rooms,   FontAwesomeIcon.DoorOpen,        "Rooms");
+
         if (configuration.showVenueTab)
             navButton(Tab.Venues, FontAwesomeIcon.Building, "Venues");
 
@@ -227,6 +232,7 @@ public class MainWindow : Window, IDisposable
             case Tab.Sales:    salesTab.draw();     break;
             case Tab.History:  guestLogTab.draw();  break;
             case Tab.Shift:    shiftsTab.draw();    break;
+            case Tab.Rooms:    roomsTab.draw();     break;
             case Tab.Venues:   venuesTab.draw();    break;
             case Tab.Settings: settingsTab.draw();  break;
         }
