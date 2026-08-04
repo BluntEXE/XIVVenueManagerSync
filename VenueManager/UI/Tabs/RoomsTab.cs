@@ -22,6 +22,7 @@ public class RoomsTab
   private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(25);
 
   private Dictionary<string, string> noteDrafts = new();
+  private HashSet<string> pendingRoomIds = new();
 
   public RoomsTab(Plugin plugin)
   {
@@ -99,21 +100,26 @@ public class RoomsTab
       ImGui.TextDisabled($"({room.Note})");
     }
 
+    bool pending = pendingRoomIds.Contains(room.Id);
+
     string toggleLabel = room.IsOccupied ? $"Mark Free##{room.Id}" : $"Mark Occupied##{room.Id}";
     float btnWidth = ImGui.CalcTextSize(toggleLabel.Split('#')[0]).X + ImGui.GetStyle().FramePadding.X * 2;
     float rightEdge = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX();
     ImGui.SameLine();
     ImGui.SetCursorPosX(rightEdge - btnWidth);
 
+    if (pending) ImGui.BeginDisabled();
     using (ThemeManager.PrimaryButton())
     {
       if (ImGui.SmallButton(toggleLabel))
         _ = SetStatusAsync(room, !room.IsOccupied, room.Note);
     }
+    if (pending) ImGui.EndDisabled();
 
     if (!noteDrafts.TryGetValue(room.Id, out var draft))
       draft = room.Note ?? "";
 
+    if (pending) ImGui.BeginDisabled();
     ImGui.PushItemWidth(200);
     if (ImGui.InputTextWithHint($"##note{room.Id}", "Note…", ref draft, 200, ImGuiInputTextFlags.EnterReturnsTrue))
     {
@@ -125,6 +131,7 @@ public class RoomsTab
       noteDrafts[room.Id] = draft;
     }
     ImGui.PopItemWidth();
+    if (pending) ImGui.EndDisabled();
 
     ImGui.Spacing();
   }
@@ -153,6 +160,7 @@ public class RoomsTab
   private async Task SetStatusAsync(Room room, bool isOccupied, string? note)
   {
     if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
+    if (!pendingRoomIds.Add(room.Id)) return;
 
     try
     {
@@ -173,6 +181,10 @@ public class RoomsTab
     {
       statusMessage = $"Error: {ex.Message}";
       statusIsError = true;
+    }
+    finally
+    {
+      pendingRoomIds.Remove(room.Id);
     }
   }
 }
