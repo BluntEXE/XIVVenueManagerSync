@@ -124,7 +124,6 @@ public class RoomsTab
     if (ImGui.InputTextWithHint($"##note{room.Id}", "Note…", ref draft, 200, ImGuiInputTextFlags.EnterReturnsTrue))
     {
       _ = SetStatusAsync(room, room.IsOccupied, draft);
-      noteDrafts.Remove(room.Id);
     }
     else
     {
@@ -169,6 +168,7 @@ public class RoomsTab
       {
         statusMessage = $"{room.Name}: {(isOccupied ? "marked occupied" : "marked free")}";
         statusIsError = false;
+        noteDrafts.Remove(room.Id);
         _ = FetchRoomsAsync();
       }
       else
