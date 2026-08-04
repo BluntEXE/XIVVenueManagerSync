@@ -21,6 +21,16 @@ public class GuestListWidget
     return plugin.xivAppVipPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
   }
 
+  private bool isBanned(Player player)
+  {
+    return plugin.xivAppBannedPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
+  }
+
+  private string? bannedReason(Player player)
+  {
+    return plugin.xivAppBannedPatrons.FirstOrDefault(v => v.CharacterName == player.Name && v.World == player.WorldName)?.Reason;
+  }
+
   // Draw venue list menu
   public unsafe void draw(long houseId)
   {
@@ -164,6 +174,14 @@ public class GuestListWidget
         ImGui.TableNextColumn();
         if (isVip(player.Value)) {
           ImGui.TextColored(VenueManager.UI.Colors.XivGold, "★ ");
+          ImGui.SameLine(0, 0);
+        }
+        if (isBanned(player.Value)) {
+          ImGui.TextColored(VenueManager.UI.Colors.XivRed, "⚠ ");
+          if (ImGui.IsItemHovered()) {
+            var reason = bannedReason(player.Value);
+            if (!string.IsNullOrEmpty(reason)) ImGui.SetTooltip(reason);
+          }
           ImGui.SameLine(0, 0);
         }
         ImGui.TextColored(playerColor, player.Value.Name);
