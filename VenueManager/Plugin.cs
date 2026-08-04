@@ -242,6 +242,7 @@ namespace VenueManager
       var TipBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a tip without opening UI. Usage: /xvm tip! <amount> [customer]" };
       var TargetHelp  = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab prefilled with current target as customer. Usage: /xvm target [amount]" };
       var TargetBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale for your current target without opening UI. Usage: /xvm target! <amount>" };
+      var BanBangHelp    = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Ban your current target with a reason. Usage: /xvm ban! <reason>" };
       var StartHelp      = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock into your current shift. Usage: /xvm start" };
       var EndHelp        = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Clock out of your active shift. Usage: /xvm end" };
       CommandManager.AddHandler(CommandNameAlias + " sale",    SaleHelp);
@@ -250,6 +251,7 @@ namespace VenueManager
       CommandManager.AddHandler(CommandNameAlias + " tip!",    TipBangHelp);
       CommandManager.AddHandler(CommandNameAlias + " target",  TargetHelp);
       CommandManager.AddHandler(CommandNameAlias + " target!", TargetBangHelp);
+      CommandManager.AddHandler(CommandNameAlias + " ban!",    BanBangHelp);
       CommandManager.AddHandler(CommandNameAlias + " start",   StartHelp);
       CommandManager.AddHandler(CommandNameAlias + " end",     EndHelp);
 
@@ -328,6 +330,7 @@ namespace VenueManager
       CommandManager.RemoveHandler(CommandNameAlias + " tip!");
       CommandManager.RemoveHandler(CommandNameAlias + " target");
       CommandManager.RemoveHandler(CommandNameAlias + " target!");
+      CommandManager.RemoveHandler(CommandNameAlias + " ban!");
       CommandManager.RemoveHandler(CommandNameAlias + " start");
       CommandManager.RemoveHandler(CommandNameAlias + " end");
     }
@@ -457,6 +460,39 @@ namespace VenueManager
         return;
       }
 
+      // /xvm ban! <reason>  → ban your current target with a reason, chat toast on result
+      if (args.StartsWith("ban!"))
+      {
+        string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+        var reason = args.Length > 4 ? args.Substring(4).Trim() : "";
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+          Chat.Print(prefix + "Usage: /xvm ban! <reason>");
+          return;
+        }
+
+        var target = TargetManager.Target;
+        if (target == null || string.IsNullOrEmpty(target.Name.TextValue))
+        {
+          Chat.Print(prefix + "No target selected.");
+          return;
+        }
+        if (target is not IPlayerCharacter targetCharacter)
+        {
+          Chat.Print(prefix + "Target must be a player character.");
+          return;
+        }
+
+        var targetName = targetCharacter.Name.TextValue;
+        var homeWorldName = targetCharacter.HomeWorld.Value.Name.ToString();
+        var targetWorld = string.IsNullOrEmpty(homeWorldName) || homeWorldName == "Unknown"
+          ? targetCharacter.CurrentWorld.Value.Name.ToString()
+          : homeWorldName;
+
+        _ = BanPatronSilentAsync(targetName, targetWorld, reason);
+        return;
+      }
+
       if (args == "start")
       {
         _ = ShiftClockInSilentAsync();
@@ -572,6 +608,44 @@ namespace VenueManager
       {
         Log.Error($"LogTipSilentAsync exception: {ex}");
         Chat.Print(prefix + $"Tip error: {ex.Message}");
+      }
+    }
+
+    // Fire-and-forget ban used by `/xvm ban!`. Bans the player's current
+    // target with the given reason. Works even for a character with no
+    // prior visit history — the server finds-or-creates the Patron row.
+    public async Task BanPatronSilentAsync(string characterName, string world, string reason)
+    {
+      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+
+      if (xivAppClient == null || !xivAppClient.IsConfigured)
+      {
+        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
+        return;
+      }
+      if (string.IsNullOrEmpty(currentXivAppVenueId))
+      {
+        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
+        return;
+      }
+
+      try
+      {
+        var result = await xivAppClient.Patron.BanPatronAsync(currentXivAppVenueId, characterName, world, reason);
+
+        if (result.Success)
+        {
+          Chat.Print(prefix + $"Banned {characterName}: {reason}");
+        }
+        else
+        {
+          Chat.Print(prefix + $"Ban failed: {result.Error ?? "unknown error"}");
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"BanPatronSilentAsync exception: {ex}");
+        Chat.Print(prefix + $"Ban error: {ex.Message}");
       }
     }
 
@@ -1209,6 +1283,11 @@ namespace VenueManager
       return xivAppVipPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
     }
 
+    private bool isBannedPatron(Player player)
+    {
+      return xivAppBannedPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
+    }
+
     private void showGuestEnterChatAlert(Player player, bool isSelf)
     {
       var messageBuilder = new SeStringBuilder();
@@ -1262,6 +1341,11 @@ namespace VenueManager
       if (isVipPatron(player))
       {
         messageBuilder.AddText("★ VIP ");
+      }
+
+      if (isBannedPatron(player))
+      {
+        messageBuilder.AddText("⚠ BANNED ");
       }
 
       // Player Color
