@@ -1200,6 +1200,11 @@ namespace VenueManager
       chatMessage->Dtor();
     }
 
+    private bool isVipPatron(Player player)
+    {
+      return xivAppVipPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
+    }
+
     private void showGuestEnterChatAlert(Player player, bool isSelf)
     {
       var messageBuilder = new SeStringBuilder();
@@ -1250,7 +1255,12 @@ namespace VenueManager
       // Show text alert for guests
       if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
 
-      // Player Color 
+      if (isVipPatron(player))
+      {
+        messageBuilder.AddText("★ VIP ");
+      }
+
+      // Player Color
       messageBuilder.AddUiForeground(Colors.getChatColor(player, true));
 
       // Add player message 
