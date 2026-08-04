@@ -79,6 +79,24 @@ namespace VenueManager
     public List<VipPatron> VipPatrons { get; set; } = new();
   }
 
+  public class BannedPatron
+  {
+    [JsonPropertyName("characterName")]
+    public string CharacterName { get; set; } = "";
+
+    [JsonPropertyName("world")]
+    public string World { get; set; } = "";
+
+    [JsonPropertyName("reason")]
+    public string Reason { get; set; } = "";
+  }
+
+  public class BannedPatronsResponse
+  {
+    [JsonPropertyName("bannedPatrons")]
+    public List<BannedPatron> BannedPatrons { get; set; } = new();
+  }
+
   public class XIVAppVenuesResponse
   {
     [JsonPropertyName("venues")]
@@ -162,6 +180,21 @@ namespace VenueManager
     [JsonPropertyName("type")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Type { get; set; }
+  }
+
+  public class XIVAppBanPatronRequest
+  {
+    [JsonPropertyName("venueId")]
+    public string VenueId { get; set; } = "";
+
+    [JsonPropertyName("characterName")]
+    public string CharacterName { get; set; } = "";
+
+    [JsonPropertyName("world")]
+    public string World { get; set; } = "";
+
+    [JsonPropertyName("reason")]
+    public string Reason { get; set; } = "";
   }
 
   public class LogTransactionResult

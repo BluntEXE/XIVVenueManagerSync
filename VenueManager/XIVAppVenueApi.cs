@@ -103,6 +103,27 @@ namespace VenueManager
       }
     }
 
+    public async Task<List<BannedPatron>> GetBannedPatronsAsync(string venueId)
+    {
+      if (!_client.IsConfigured) return new List<BannedPatron>();
+      try
+      {
+        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/patrons/banned?venueId={venueId}");
+        if (!response.IsSuccessStatusCode)
+        {
+          Plugin.Log.Warning($"Failed to get banned patrons: {response.StatusCode}");
+          return new List<BannedPatron>();
+        }
+        var result = await response.Content.ReadFromJsonAsync<BannedPatronsResponse>();
+        return result?.BannedPatrons ?? new List<BannedPatron>();
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error fetching banned patrons: {ex.Message}");
+        return new List<BannedPatron>();
+      }
+    }
+
     public async Task<ActiveEventResponse?> GetActiveEventAsync(string venueId)
     {
       if (!_client.IsConfigured) return null;

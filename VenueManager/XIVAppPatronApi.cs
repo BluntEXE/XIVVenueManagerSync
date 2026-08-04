@@ -118,5 +118,41 @@ namespace VenueManager
         return new LogTransactionResult { Success = false, Error = ex.Message };
       }
     }
+
+    /// <summary>
+    /// Ban a patron at a venue, with a required reason. Posts to
+    /// /api/plugin/patrons/ban. Used by /xvm ban! — finds or creates the
+    /// Patron row server-side, so this works even for a character with
+    /// no prior visit history.
+    /// </summary>
+    public async Task<LogTransactionResult> BanPatronAsync(string venueId, string characterName, string world, string reason)
+    {
+      if (!_client.IsConfigured)
+        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
+
+      try
+      {
+        var request = new XIVAppBanPatronRequest
+        {
+          VenueId = venueId,
+          CharacterName = characterName,
+          World = world,
+          Reason = reason,
+        };
+        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/patrons/ban", request);
+        if (!response.IsSuccessStatusCode)
+        {
+          var error = await response.Content.ReadAsStringAsync();
+          Plugin.Log.Warning($"Failed to ban patron: {response.StatusCode} - {error}");
+          return new LogTransactionResult { Success = false, Error = error };
+        }
+        return new LogTransactionResult { Success = true };
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error banning patron: {ex.Message}");
+        return new LogTransactionResult { Success = false, Error = ex.Message };
+      }
+    }
   }
 }
