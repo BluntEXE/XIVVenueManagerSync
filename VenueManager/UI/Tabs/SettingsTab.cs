@@ -686,14 +686,15 @@ public class SettingsTab
   // is still useful to surface.
   private async Task LoadVenueDataWithFeedbackAsync(string venueId, string venueName)
   {
-    xivAppStatus = $"Loading roles + services + VIPs for {venueName}…";
+    xivAppStatus = $"Loading roles + services + VIPs + bans for {venueName}…";
     xivAppStatusColor = Colors.XivOverlay0;
 
     await FetchXivAppRolesAsync(venueId);
     await FetchXivAppServicesAsync(venueId);
     await FetchXivAppVipPatronsAsync(venueId);
+    await FetchXivAppBannedPatronsAsync(venueId);
 
-    xivAppStatus = $"✓ Loaded: {plugin.xivAppRoles.Count} roles, {plugin.availableServices.Count} services, {plugin.xivAppVipPatrons.Count} VIPs";
+    xivAppStatus = $"✓ Loaded: {plugin.xivAppRoles.Count} roles, {plugin.availableServices.Count} services, {plugin.xivAppVipPatrons.Count} VIPs, {plugin.xivAppBannedPatrons.Count} banned";
     xivAppStatusColor = StatusOk;
   }
 
@@ -803,6 +804,19 @@ public class SettingsTab
       Plugin.Log.Information("Fetched {Count} VIP patron(s) for venue {VenueId}", vipPatrons.Count, venueId);
     } catch (Exception ex) {
       Plugin.Log.Error("Failed to fetch VIP patrons: {0}", ex.Message);
+    }
+  }
+
+  private async Task FetchXivAppBannedPatronsAsync(string venueId)
+  {
+    try {
+      if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
+
+      var bannedPatrons = await plugin.xivAppClient.Venue.GetBannedPatronsAsync(venueId);
+      plugin.xivAppBannedPatrons = bannedPatrons;
+      Plugin.Log.Information("Fetched {Count} banned patron(s) for venue {VenueId}", bannedPatrons.Count, venueId);
+    } catch (Exception ex) {
+      Plugin.Log.Error("Failed to fetch banned patrons: {0}", ex.Message);
     }
   }
 
