@@ -88,6 +88,7 @@ namespace VenueManager
     public List<XIVAppVenue> xivAppVenues = new();
     public List<Role> xivAppRoles = new();
     public List<Service> availableServices = new();
+    public List<VipPatron> xivAppVipPatrons = new();
     public string? currentXivAppVenueId;
 
     // Event-presence cache used to gate patron-visit sync when the user
@@ -151,6 +152,9 @@ namespace VenueManager
         var servicesResp = await xivAppClient.Venue.GetServicesAsync(target.Id);
         availableServices = servicesResp?.Services ?? new List<Service>();
         Log.Information("Auto-loaded {Count} service(s) for venue {VenueId}", availableServices.Count, target.Id);
+
+        xivAppVipPatrons = await xivAppClient.Venue.GetVipPatronsAsync(target.Id);
+        Log.Information("Auto-loaded {Count} VIP patron(s) for venue {VenueId}", xivAppVipPatrons.Count, target.Id);
       }
       catch (Exception ex)
       {

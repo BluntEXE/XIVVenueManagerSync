@@ -691,8 +691,9 @@ public class SettingsTab
 
     await FetchXivAppRolesAsync(venueId);
     await FetchXivAppServicesAsync(venueId);
+    await FetchXivAppVipPatronsAsync(venueId);
 
-    xivAppStatus = $"✓ Loaded: {plugin.xivAppRoles.Count} roles, {plugin.availableServices.Count} services";
+    xivAppStatus = $"✓ Loaded: {plugin.xivAppRoles.Count} roles, {plugin.availableServices.Count} services, {plugin.xivAppVipPatrons.Count} VIPs";
     xivAppStatusColor = StatusOk;
   }
 
@@ -789,6 +790,19 @@ public class SettingsTab
       xivAppStatus = $"✗ {ex.Message}";
       xivAppStatusColor = StatusErr;
       Plugin.Log.Error("Failed to fetch venues: {0}", ex.Message);
+    }
+  }
+
+  private async Task FetchXivAppVipPatronsAsync(string venueId)
+  {
+    try {
+      if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
+
+      var vipPatrons = await plugin.xivAppClient.Venue.GetVipPatronsAsync(venueId);
+      plugin.xivAppVipPatrons = vipPatrons;
+      Plugin.Log.Information("Fetched {Count} VIP patron(s) for venue {VenueId}", vipPatrons.Count, venueId);
+    } catch (Exception ex) {
+      Plugin.Log.Error("Failed to fetch VIP patrons: {0}", ex.Message);
     }
   }
 
