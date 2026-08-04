@@ -64,6 +64,21 @@ namespace VenueManager
     public List<Role> Roles { get; set; } = new();
   }
 
+  public class VipPatron
+  {
+    [JsonPropertyName("characterName")]
+    public string CharacterName { get; set; } = "";
+
+    [JsonPropertyName("world")]
+    public string World { get; set; } = "";
+  }
+
+  public class VipPatronsResponse
+  {
+    [JsonPropertyName("vipPatrons")]
+    public List<VipPatron> VipPatrons { get; set; } = new();
+  }
+
   public class XIVAppVenuesResponse
   {
     [JsonPropertyName("venues")]

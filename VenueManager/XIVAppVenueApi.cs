@@ -82,6 +82,27 @@ namespace VenueManager
       }
     }
 
+    public async Task<List<VipPatron>> GetVipPatronsAsync(string venueId)
+    {
+      if (!_client.IsConfigured) return new List<VipPatron>();
+      try
+      {
+        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/patrons/vip?venueId={venueId}");
+        if (!response.IsSuccessStatusCode)
+        {
+          Plugin.Log.Warning($"Failed to get VIP patrons: {response.StatusCode}");
+          return new List<VipPatron>();
+        }
+        var result = await response.Content.ReadFromJsonAsync<VipPatronsResponse>();
+        return result?.VipPatrons ?? new List<VipPatron>();
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error fetching VIP patrons: {ex.Message}");
+        return new List<VipPatron>();
+      }
+    }
+
     public async Task<ActiveEventResponse?> GetActiveEventAsync(string venueId)
     {
       if (!_client.IsConfigured) return null;
