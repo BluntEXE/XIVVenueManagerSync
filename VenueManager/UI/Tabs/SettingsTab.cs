@@ -686,7 +686,7 @@ public class SettingsTab
   // is still useful to surface.
   private async Task LoadVenueDataWithFeedbackAsync(string venueId, string venueName)
   {
-    xivAppStatus = $"Loading roles + services for {venueName}…";
+    xivAppStatus = $"Loading roles + services + VIPs for {venueName}…";
     xivAppStatusColor = Colors.XivOverlay0;
 
     await FetchXivAppRolesAsync(venueId);
