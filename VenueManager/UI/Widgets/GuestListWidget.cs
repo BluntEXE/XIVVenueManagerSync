@@ -16,6 +16,11 @@ public class GuestListWidget
     this.plugin = plugin;
   }
 
+  private bool isVip(Player player)
+  {
+    return plugin.xivAppVipPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
+  }
+
   // Draw venue list menu
   public unsafe void draw(long houseId)
   {
@@ -157,6 +162,10 @@ public class GuestListWidget
         ImGui.TableNextColumn();
         ImGui.TextColored(color, player.Value.latestEntry.ToString("h:mm tt"));
         ImGui.TableNextColumn();
+        if (isVip(player.Value)) {
+          ImGui.TextColored(VenueManager.UI.Colors.XivGold, "★ ");
+          ImGui.SameLine(0, 0);
+        }
         ImGui.TextColored(playerColor, player.Value.Name);
         if (ImGui.IsItemClicked()) {
           plugin.chatPlayerLink(player.Value);
