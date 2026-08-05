@@ -59,6 +59,11 @@ public class InventoryTab
       ImGui.TextColored(Colors.XivOverlay0, "(not tracked)");
     }
 
+    if (!string.IsNullOrEmpty(service.LinkedItemName))
+    {
+      ImGui.TextColored(Colors.XivSubtext0, $"Linked: {service.LinkedItemName}");
+    }
+
     if (ImGui.SmallButton("Link Item"))
     {
       linkingServiceId = linkingServiceId == service.Id ? null : service.Id;

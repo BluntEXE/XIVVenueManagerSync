@@ -41,6 +41,15 @@ namespace VenueManager
 
     [JsonPropertyName("stockCount")]
     public int? StockCount { get; set; }
+
+    [JsonPropertyName("linkedItemId")]
+    public int? LinkedItemId { get; set; }
+
+    [JsonPropertyName("linkedItemName")]
+    public string? LinkedItemName { get; set; }
+
+    [JsonPropertyName("linkedItemIcon")]
+    public int? LinkedItemIcon { get; set; }
   }
 
   public class ServicesResponse
