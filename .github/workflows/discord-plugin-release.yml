@@ -7,6 +7,10 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
+    # Testing/prerelease builds (e.g. v3.10.x-testing) skip this - they're
+    # for opted-in testers only, not a community-wide announcement. Only a
+    # real stable release should post here.
+    if: ${{ !github.event.release.prerelease }}
     steps:
       - name: Post to Discord
         env:
