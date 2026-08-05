@@ -38,6 +38,9 @@ namespace VenueManager
 
     [JsonPropertyName("category")]
     public string? Category { get; set; }
+
+    [JsonPropertyName("stockCount")]
+    public int? StockCount { get; set; }
   }
 
   public class ServicesResponse
@@ -47,6 +50,42 @@ namespace VenueManager
 
     [JsonPropertyName("userRole")]
     public string? UserRole { get; set; }
+  }
+
+  public class XIVAppLinkItemRequest
+  {
+    [JsonPropertyName("venueId")]
+    public string VenueId { get; set; } = "";
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; set; } = "";
+
+    [JsonPropertyName("itemId")]
+    public int ItemId { get; set; }
+
+    [JsonPropertyName("itemName")]
+    public string ItemName { get; set; } = "";
+
+    [JsonPropertyName("iconId")]
+    public int? IconId { get; set; }
+  }
+
+  public class XIVAppRestockRequest
+  {
+    [JsonPropertyName("venueId")]
+    public string VenueId { get; set; } = "";
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; set; } = "";
+
+    [JsonPropertyName("stockCount")]
+    public int StockCount { get; set; }
+  }
+
+  public class XIVAppInventorySettingsResponse
+  {
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
   }
 
   public class Role

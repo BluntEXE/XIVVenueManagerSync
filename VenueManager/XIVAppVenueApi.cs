@@ -195,5 +195,77 @@ namespace VenueManager
         return new LogTransactionResult { Success = false, Error = ex.Message };
       }
     }
+
+    public async Task<bool> GetInventoryEnabledAsync(string venueId)
+    {
+      if (!_client.IsConfigured) return false;
+      try
+      {
+        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/inventory-settings?venueId={venueId}");
+        if (!response.IsSuccessStatusCode) return false;
+        var result = await response.Content.ReadFromJsonAsync<XIVAppInventorySettingsResponse>();
+        return result?.Enabled ?? false;
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error fetching inventory settings: {ex.Message}");
+        return false;
+      }
+    }
+
+    public async Task<LogTransactionResult> LinkItemAsync(string venueId, string serviceId, int itemId, string itemName, int? iconId)
+    {
+      if (!_client.IsConfigured)
+        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
+
+      try
+      {
+        var request = new XIVAppLinkItemRequest
+        {
+          VenueId = venueId,
+          ServiceId = serviceId,
+          ItemId = itemId,
+          ItemName = itemName,
+          IconId = iconId,
+        };
+        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/inventory/link-item", request);
+        if (!response.IsSuccessStatusCode)
+        {
+          var error = await response.Content.ReadAsStringAsync();
+          Plugin.Log.Warning($"Failed to link item: {response.StatusCode} - {error}");
+          return new LogTransactionResult { Success = false, Error = error };
+        }
+        return new LogTransactionResult { Success = true };
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error linking item: {ex.Message}");
+        return new LogTransactionResult { Success = false, Error = ex.Message };
+      }
+    }
+
+    public async Task<LogTransactionResult> RestockAsync(string venueId, string serviceId, int stockCount)
+    {
+      if (!_client.IsConfigured)
+        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
+
+      try
+      {
+        var request = new XIVAppRestockRequest { VenueId = venueId, ServiceId = serviceId, StockCount = stockCount };
+        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/inventory/restock", request);
+        if (!response.IsSuccessStatusCode)
+        {
+          var error = await response.Content.ReadAsStringAsync();
+          Plugin.Log.Warning($"Failed to restock: {response.StatusCode} - {error}");
+          return new LogTransactionResult { Success = false, Error = error };
+        }
+        return new LogTransactionResult { Success = true };
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error restocking: {ex.Message}");
+        return new LogTransactionResult { Success = false, Error = ex.Message };
+      }
+    }
   }
 }
