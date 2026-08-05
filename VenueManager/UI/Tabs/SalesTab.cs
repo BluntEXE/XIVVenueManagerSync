@@ -94,6 +94,8 @@ public class SalesTab
     {
       var svc = services[selectedServiceIndex - 1];
       selectedLabel = $"{svc.Name} — {svc.Price}g";
+      if (svc.StockCount.HasValue)
+        selectedLabel += svc.StockCount.Value <= 0 ? " (out of stock)" : $" ({svc.StockCount.Value} left)";
     }
 
     ImGui.TextColored(Colors.XivSubtext0, "Service");
@@ -109,6 +111,8 @@ public class SalesTab
         var svc = services[i];
         bool isSelected = selectedServiceIndex == i + 1;
         var label = $"{svc.Name} — {svc.Price}g";
+        if (svc.StockCount.HasValue)
+          label += svc.StockCount.Value <= 0 ? " (out of stock)" : $" ({svc.StockCount.Value} left)";
         if (ImGui.Selectable(label, isSelected))
         {
           selectedServiceIndex = i + 1;
