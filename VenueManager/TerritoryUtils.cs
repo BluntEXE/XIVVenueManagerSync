@@ -153,9 +153,8 @@ namespace VenueManager
       return 0;
     }
 
-    public static string getDistrict (long houseId) {
-      uint territoryId = (uint)((houseId >> 32) & 0xFFFF);
-      var district = Plugin.DataManager.GetExcelSheet<Sheet.TerritoryType>().GetRow(territoryId).PlaceNameZone.RowId;
+    public static string getDistrict (uint territoryTypeId) {
+      var district = Plugin.DataManager.GetExcelSheet<Sheet.TerritoryType>().GetRow(territoryTypeId).PlaceNameZone.RowId;
 
       switch (district) {
         case 502: 

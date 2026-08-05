@@ -796,17 +796,21 @@ namespace VenueManager
       // Save current user territory
       pluginState.territory = (ushort)territory;
 
+      // "In house" here means "at the venue" - interior instance OR
+      // standing outside on the plot exterior. Both feed the same
+      // tracking/logging path so a patron never gets double-counted for
+      // walking through the door.
       bool inHouse = false;
       try
       {
         var housingManager = HousingManager.Instance();
-        inHouse = housingManager->IsInside();
+        inHouse = housingManager->IsInside() || housingManager->IsOutside();
       }
       catch (Exception ex) {
         Log.Warning("Could not get housing state on territory change. " + ex.Message);
       }
 
-      // Player has entered a house 
+      // Player has entered a house (or its plot exterior)
       if (inHouse)
       {
         justEnteredHouse = true;
@@ -841,6 +845,47 @@ namespace VenueManager
       // Refresh DTR immediately so "Outside" replaces the venue name without
       // waiting for the 2s throttle.
       UpdateDtrBar(force: true);
+    }
+
+    // Re-keys a house saved under the legacy interior-only houseId
+    // (GetCurrentIndoorHouseId()) to the new composite id (works inside and
+    // outside). Runs at most once per house, the first time it's visited
+    // after this shipped - venueList, the xiv-app venue link, and the
+    // on-disk guest-list file all move together so patron history isn't
+    // orphaned under a dead key.
+    private void MigrateLegacyHouseId(long legacyHouseId, long newHouseId)
+    {
+      if (!venueList.venues.TryGetValue(legacyHouseId, out var venue)) return;
+
+      Log.Information("Migrating house id {0} -> {1} ({2})", legacyHouseId, newHouseId, venue.name);
+
+      venueList.venues.Remove(legacyHouseId);
+      venue.houseId = newHouseId;
+      venueList.venues[newHouseId] = venue;
+      venueList.save();
+
+      if (Configuration.houseToXivAppVenue.Remove(legacyHouseId, out var linkedVenueId))
+      {
+        Configuration.houseToXivAppVenue[newHouseId] = linkedVenueId;
+        Configuration.Save();
+      }
+
+      var legacyFile = FileStore.GetFileInfo(legacyHouseId + "-guests.json");
+      if (legacyFile.Exists)
+      {
+        var legacyGuestList = new GuestList(legacyHouseId, new Venue());
+        legacyGuestList.load();
+        legacyGuestList.houseId = newHouseId;
+        legacyGuestList.venue = venue;
+        legacyGuestList.save();
+        legacyFile.Delete();
+      }
+
+      if (guestLists.Remove(legacyHouseId, out var cachedGuestList))
+      {
+        cachedGuestList.houseId = newHouseId;
+        guestLists[newHouseId] = cachedGuestList;
+      }
     }
 
     // Refreshes the Server Info Bar entry text. Called every framework tick,
@@ -1078,17 +1123,54 @@ namespace VenueManager
             try
             {
               var housingManager = HousingManager.Instance();
-              // If the user has transitioned into a new house. Store that house information. Ensure we have a world to set it to 
-              if (pluginState.currentHouse.houseId != (long)housingManager->GetCurrentIndoorHouseId().Id)
+
+              // Composite ID works inside or outside on the plot exterior -
+              // need the world first since it's an input to the formula
+              // (native GetCurrentIndoorHouseId() didn't need it passed in).
+              // Bail and retry next tick rather than falling back to a stale/
+              // zero world id - Objects[0] resolving is already known to be
+              // flaky the instant after a territory change, and a wrong world
+              // id here would corrupt the computed house identity instead of
+              // just failing loudly like the surrounding catch already does.
+              if (Objects[0] is not IPlayerCharacter selfCharacter)
               {
-                pluginState.currentHouse.houseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
+                running = false;
+                return;
+              }
+              uint currentWorldId = selfCharacter.CurrentWorld.Value.RowId;
+
+              var computedHouseId = HouseIdentity.Current(housingManager, currentWorldId);
+              if (computedHouseId == null)
+              {
+                // Not actually at a valid plot (e.g. wandering the open
+                // ward, not near any plot boundary) - nothing to track.
+                running = false;
+                return;
+              }
+
+              // If the user has transitioned into a new house/plot. Store that house information.
+              if (pluginState.currentHouse.houseId != computedHouseId.Value)
+              {
+                // One-time self-heal: a house saved before exterior tracking
+                // shipped may still be keyed under the legacy
+                // GetCurrentIndoorHouseId() value. Only worth checking while
+                // actually inside (that's the only state the legacy ID was
+                // ever computed from) and only when the composite ID isn't
+                // already a known venue.
+                if (housingManager->IsInside() && !venueList.venues.ContainsKey(computedHouseId.Value))
+                {
+                  var legacyHouseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
+                  if (legacyHouseId != computedHouseId.Value)
+                    MigrateLegacyHouseId(legacyHouseId, computedHouseId.Value);
+                }
+
+                pluginState.currentHouse.houseId = computedHouseId.Value;
                 pluginState.currentHouse.plot = housingManager->GetCurrentPlot() + 1; // Game stores plot as -1
                 pluginState.currentHouse.ward = housingManager->GetCurrentWard() + 1; // Game stores ward as -1
                 pluginState.currentHouse.room = housingManager->GetCurrentRoom();
                 pluginState.currentHouse.type = (ushort)HousingManager.GetOriginalHouseTerritoryTypeId();
-                pluginState.currentHouse.district = TerritoryUtils.getDistrict((long)housingManager->GetCurrentIndoorHouseId().Id);
-                if (Objects[0] is IPlayerCharacter localPlayer)
-                  pluginState.currentHouse.worldId = localPlayer.CurrentWorld.Value.RowId;
+                pluginState.currentHouse.district = TerritoryUtils.getDistrict(pluginState.currentHouse.type);
+                pluginState.currentHouse.worldId = currentWorldId;
 
                 // Load current guest list from disk if player has entered a saved venue
                 if (venueList.venues.ContainsKey(pluginState.currentHouse.houseId))
