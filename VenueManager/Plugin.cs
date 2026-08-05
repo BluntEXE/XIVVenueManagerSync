@@ -1249,7 +1249,12 @@ namespace VenueManager
                   var venue = venueList.venues[pluginState.currentHouse.houseId];
                   GuestList venueGuestList = new GuestList(venue.houseId, venue);
                   venueGuestList.load();
-                  guestLists.Add(venue.houseId, venueGuestList);
+                  // Upsert, not Add - re-entering a house already visited
+                  // this session (leave then come back, now trivial via the
+                  // exterior) would otherwise throw on a duplicate key here,
+                  // which the surrounding catch swallowed silently, cutting
+                  // off the name-resolution code just below before it ran.
+                  guestLists[venue.houseId] = venueGuestList;
                 }
 
                 // Resolve display name for the main window header — never
