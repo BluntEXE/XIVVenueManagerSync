@@ -693,6 +693,7 @@ public class SettingsTab
     await FetchXivAppServicesAsync(venueId);
     await FetchXivAppVipPatronsAsync(venueId);
     await FetchXivAppBannedPatronsAsync(venueId);
+    await FetchXivAppInventoryEnabledAsync(venueId);
 
     xivAppStatus = $"✓ Loaded: {plugin.xivAppRoles.Count} roles, {plugin.availableServices.Count} services, {plugin.xivAppVipPatrons.Count} VIPs, {plugin.xivAppBannedPatrons.Count} banned";
     xivAppStatusColor = StatusOk;
@@ -817,6 +818,18 @@ public class SettingsTab
       Plugin.Log.Information("Fetched {Count} banned patron(s) for venue {VenueId}", bannedPatrons.Count, venueId);
     } catch (Exception ex) {
       Plugin.Log.Error("Failed to fetch banned patrons: {0}", ex.Message);
+    }
+  }
+
+  private async Task FetchXivAppInventoryEnabledAsync(string venueId)
+  {
+    try {
+      if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
+
+      plugin.xivAppInventoryEnabled = await plugin.xivAppClient.Venue.GetInventoryEnabledAsync(venueId);
+      Plugin.Log.Information("Fetched inventory-enabled={0} for venue {1}", plugin.xivAppInventoryEnabled, venueId);
+    } catch (Exception ex) {
+      Plugin.Log.Error("Failed to fetch inventory settings: {0}", ex.Message);
     }
   }
 

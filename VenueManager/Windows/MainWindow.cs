@@ -21,8 +21,9 @@ public class MainWindow : Window, IDisposable
     private SalesTab salesTab;
     private ShiftsTab shiftsTab;
     private RoomsTab roomsTab;
+    private InventoryTab inventoryTab;
 
-    private enum Tab { Patrons, Sales, History, Shift, Rooms, Venues, Settings }
+    private enum Tab { Patrons, Sales, History, Shift, Rooms, Inventory, Venues, Settings }
     private Tab _currentTab = Tab.Sales;
 
     // Sidebar layout constants
@@ -50,6 +51,7 @@ public class MainWindow : Window, IDisposable
         this.salesTab      = new SalesTab(plugin);
         this.shiftsTab     = new ShiftsTab(plugin);
         this.roomsTab      = new RoomsTab(plugin);
+        this.inventoryTab  = new InventoryTab(plugin);
     }
 
     public void Dispose() { }
@@ -64,6 +66,7 @@ public class MainWindow : Window, IDisposable
             "History"  => Tab.History,
             "My Shift" => Tab.Shift,
             "Rooms"    => Tab.Rooms,
+            "Inventory" => Tab.Inventory,
             "Venues"   => Tab.Venues,
             "Settings" => Tab.Settings,
             _          => _currentTab,
@@ -183,6 +186,9 @@ public class MainWindow : Window, IDisposable
 
         navButton(Tab.Rooms,   FontAwesomeIcon.DoorOpen,        "Rooms");
 
+        if (plugin.xivAppInventoryEnabled)
+            navButton(Tab.Inventory, FontAwesomeIcon.WineGlass, "Inventory");
+
         if (configuration.showVenueTab)
             navButton(Tab.Venues, FontAwesomeIcon.Building, "Venues");
 
@@ -225,16 +231,18 @@ public class MainWindow : Window, IDisposable
         if (_currentTab == Tab.Patrons  && !configuration.showGuestsTab) _currentTab = Tab.Sales;
         if (_currentTab == Tab.History  && !configuration.showGuestsTab) _currentTab = Tab.Sales;
         if (_currentTab == Tab.Venues   && !configuration.showVenueTab)  _currentTab = Tab.Sales;
+        if (_currentTab == Tab.Inventory && !plugin.xivAppInventoryEnabled) _currentTab = Tab.Sales;
 
         switch (_currentTab)
         {
-            case Tab.Patrons:  guestsTab.draw();    break;
-            case Tab.Sales:    salesTab.draw();     break;
-            case Tab.History:  guestLogTab.draw();  break;
-            case Tab.Shift:    shiftsTab.draw();    break;
-            case Tab.Rooms:    roomsTab.draw();     break;
-            case Tab.Venues:   venuesTab.draw();    break;
-            case Tab.Settings: settingsTab.draw();  break;
+            case Tab.Patrons:   guestsTab.draw();    break;
+            case Tab.Sales:     salesTab.draw();     break;
+            case Tab.History:   guestLogTab.draw();  break;
+            case Tab.Shift:     shiftsTab.draw();    break;
+            case Tab.Rooms:     roomsTab.draw();     break;
+            case Tab.Inventory: inventoryTab.draw(); break;
+            case Tab.Venues:    venuesTab.draw();    break;
+            case Tab.Settings:  settingsTab.draw();  break;
         }
     }
 }

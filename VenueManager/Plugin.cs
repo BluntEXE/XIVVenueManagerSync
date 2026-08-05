@@ -88,6 +88,7 @@ namespace VenueManager
     public List<XIVAppVenue> xivAppVenues = new();
     public List<Role> xivAppRoles = new();
     public List<Service> availableServices = new();
+    public bool xivAppInventoryEnabled = false;
     public List<VipPatron> xivAppVipPatrons = new();
     public List<BannedPatron> xivAppBannedPatrons = new();
     public string? currentXivAppVenueId;
@@ -159,6 +160,9 @@ namespace VenueManager
 
         xivAppBannedPatrons = await xivAppClient.Venue.GetBannedPatronsAsync(target.Id);
         Log.Information("Auto-loaded {Count} banned patron(s) for venue {VenueId}", xivAppBannedPatrons.Count, target.Id);
+
+        xivAppInventoryEnabled = await xivAppClient.Venue.GetInventoryEnabledAsync(target.Id);
+        Log.Information("Auto-loaded inventory-enabled={0} for venue {VenueId}", xivAppInventoryEnabled, target.Id);
       }
       catch (Exception ex)
       {
