@@ -58,6 +58,14 @@ namespace VenueManager
     private Stopwatch stopwatch = new();
     private DoorbellSound doorbell;
 
+    // Always running, independent of stopwatch above. Detects standing on a
+    // plot exterior when nothing has set userInHouse yet - OnTerritoryChanged
+    // fires on zone *load*, and walking from a ward's general area onto a
+    // specific plot's exterior boundary isn't a zone load, so entry via the
+    // exterior (unlike walking through a door) has no discrete event to
+    // hook. This is a low-frequency poll purely to catch that case.
+    private Stopwatch entryPollStopwatch = Stopwatch.StartNew();
+
     // Server Info Bar entry. Created once in ctor, text refreshed from the
     // framework-update tick (throttled to ~2s — DTR is at-a-glance, no need
     // to allocate a new SeString every frame). Disposed on unload via Remove().
@@ -1126,6 +1134,34 @@ namespace VenueManager
       try
       {
         UpdateDtrBar();
+
+        // Poll for standing on a plot exterior when nothing has flagged us
+        // as in-house yet. Runs everywhere in the game world, not just near
+        // housing - HousingManager calls are safe to make unconditionally
+        // (same assumption Aetherphone's own tracker relies on, calling its
+        // equivalent detector every tick with no location precondition).
+        if (!pluginState.userInHouse && entryPollStopwatch.ElapsedMilliseconds > 1000)
+        {
+          entryPollStopwatch.Restart();
+          try
+          {
+            var housingManager = HousingManager.Instance();
+            if (housingManager != null && Objects[0] is IPlayerCharacter pollSelf)
+            {
+              var polledHouseId = HouseIdentity.Current(housingManager, pollSelf.CurrentWorld.Value.RowId);
+              if (polledHouseId != null)
+              {
+                justEnteredHouse = true;
+                pluginState.userInHouse = true;
+                startTimers();
+              }
+            }
+          }
+          catch (Exception ex)
+          {
+            Log.Verbose("Exterior entry poll failed (expected away from housing): " + ex.Message);
+          }
+        }
 
         // Every second we are in a house. Process players and see what has changed
         if (pluginState.userInHouse && stopwatch.ElapsedMilliseconds > 1000)
