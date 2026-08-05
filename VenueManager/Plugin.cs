@@ -1144,8 +1144,13 @@ namespace VenueManager
               var computedHouseId = HouseIdentity.Current(housingManager, currentWorldId);
               if (computedHouseId == null)
               {
-                // Not actually at a valid plot (e.g. wandering the open
-                // ward, not near any plot boundary) - nothing to track.
+                // Walked off the plot exterior without a territory change
+                // (still the same ward zone) - OnTerritoryChanged never
+                // fires for this, unlike leaving an interior instance, so
+                // this per-tick check is the only place that notices.
+                // Without this, the header/guest tracking would stay stuck
+                // on the last venue indefinitely after walking away outside.
+                if (pluginState.userInHouse) leftHouse();
                 running = false;
                 return;
               }
