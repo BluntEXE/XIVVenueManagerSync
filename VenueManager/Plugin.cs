@@ -177,8 +177,19 @@ namespace VenueManager
     public string PluginVersion { get; } =
       typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "?";
 
-    // True for the first loop that a player enters a house 
+    // True for the first loop that a player enters a house
     private bool justEnteredHouse = false;
+
+    // Tracks how long HouseIdentity.Current() has continuously read null
+    // while userInHouse - debounces the leftHouse() call in
+    // OnFrameworkUpdate against a single transient misread. Early-return
+    // paths there don't restart `stopwatch`, so once its 1000ms gate has
+    // been crossed once, those paths get hit every frame (not once a
+    // second) until a full pass succeeds - a one-frame hiccup right after
+    // entering would otherwise trip leftHouse() almost immediately, with
+    // nothing left to recover it since only an actual zone change restarts
+    // tracking.
+    private long? notAtPlotSinceMs = null;
 
     private bool running = false;
 
@@ -1148,12 +1159,19 @@ namespace VenueManager
                 // (still the same ward zone) - OnTerritoryChanged never
                 // fires for this, unlike leaving an interior instance, so
                 // this per-tick check is the only place that notices.
-                // Without this, the header/guest tracking would stay stuck
-                // on the last venue indefinitely after walking away outside.
-                if (pluginState.userInHouse) leftHouse();
+                // Debounced (see notAtPlotSinceMs) so a single transient
+                // misread right after entering doesn't kill tracking with
+                // no way to recover it.
+                notAtPlotSinceMs ??= Environment.TickCount64;
+                if (pluginState.userInHouse && Environment.TickCount64 - notAtPlotSinceMs.Value > 2000)
+                {
+                  leftHouse();
+                  notAtPlotSinceMs = null;
+                }
                 running = false;
                 return;
               }
+              notAtPlotSinceMs = null;
 
               // One-time self-heal: a house saved before exterior tracking
               // shipped may still be keyed under the legacy
