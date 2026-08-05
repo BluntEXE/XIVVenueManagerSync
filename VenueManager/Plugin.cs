@@ -853,9 +853,9 @@ namespace VenueManager
     // after this shipped - venueList, the xiv-app venue link, and the
     // on-disk guest-list file all move together so patron history isn't
     // orphaned under a dead key.
-    private void MigrateLegacyHouseId(long legacyHouseId, long newHouseId)
+    private bool MigrateLegacyHouseId(long legacyHouseId, long newHouseId)
     {
-      if (!venueList.venues.TryGetValue(legacyHouseId, out var venue)) return;
+      if (!venueList.venues.TryGetValue(legacyHouseId, out var venue)) return false;
 
       Log.Information("Migrating house id {0} -> {1} ({2})", legacyHouseId, newHouseId, venue.name);
 
@@ -886,6 +886,8 @@ namespace VenueManager
         cachedGuestList.houseId = newHouseId;
         guestLists[newHouseId] = cachedGuestList;
       }
+
+      return true;
     }
 
     // Refreshes the Server Info Bar entry text. Called every framework tick,
@@ -1148,22 +1150,32 @@ namespace VenueManager
                 return;
               }
 
+              // One-time self-heal: a house saved before exterior tracking
+              // shipped may still be keyed under the legacy
+              // GetCurrentIndoorHouseId() value. Only worth checking while
+              // actually inside (that's the only state the legacy ID was
+              // ever computed from) and only when the composite ID isn't
+              // already a known venue. Deliberately NOT nested inside the
+              // "houseId just changed" branch below - if the player walked
+              // the exterior first, pluginState.currentHouse.houseId already
+              // equals computedHouseId (same physical plot, same formula) by
+              // the time they step inside, so no "change" is ever detected
+              // and a transition-gated migration would never run.
+              if (housingManager->IsInside() && !venueList.venues.ContainsKey(computedHouseId.Value))
+              {
+                var legacyHouseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
+                if (legacyHouseId != computedHouseId.Value && MigrateLegacyHouseId(legacyHouseId, computedHouseId.Value))
+                {
+                  // Migration just made this id known, but nothing below
+                  // will notice unless the block treats this as a fresh
+                  // transition - force that by clearing the stored id.
+                  pluginState.currentHouse.houseId = 0;
+                }
+              }
+
               // If the user has transitioned into a new house/plot. Store that house information.
               if (pluginState.currentHouse.houseId != computedHouseId.Value)
               {
-                // One-time self-heal: a house saved before exterior tracking
-                // shipped may still be keyed under the legacy
-                // GetCurrentIndoorHouseId() value. Only worth checking while
-                // actually inside (that's the only state the legacy ID was
-                // ever computed from) and only when the composite ID isn't
-                // already a known venue.
-                if (housingManager->IsInside() && !venueList.venues.ContainsKey(computedHouseId.Value))
-                {
-                  var legacyHouseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
-                  if (legacyHouseId != computedHouseId.Value)
-                    MigrateLegacyHouseId(legacyHouseId, computedHouseId.Value);
-                }
-
                 pluginState.currentHouse.houseId = computedHouseId.Value;
                 pluginState.currentHouse.plot = housingManager->GetCurrentPlot() + 1; // Game stores plot as -1
                 pluginState.currentHouse.ward = housingManager->GetCurrentWard() + 1; // Game stores ward as -1
