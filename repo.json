@@ -22,8 +22,8 @@
     "IconUrl": "https://raw.githubusercontent.com/BluntEXE/XIVVenueManagerSync/master/images/icon.png",
     "DownloadLinkInstall": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.9.2/XIVVenueManagerSync.zip",
     "DownloadLinkUpdate": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.9.2/XIVVenueManagerSync.zip",
-    "DownloadLinkTesting": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.10.5-testing/XIVVenueManagerSync.zip",
-    "TestingAssemblyVersion": "3.10.5",
+    "DownloadLinkTesting": "https://github.com/BluntEXE/XIVVenueManagerSync/releases/download/v3.10.6-testing/XIVVenueManagerSync.zip",
+    "TestingAssemblyVersion": "3.10.6",
     "DalamudApiLevel": 15,
     "TestingDalamudApiLevel": 15
   }
