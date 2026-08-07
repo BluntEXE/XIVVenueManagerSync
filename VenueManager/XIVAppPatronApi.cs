@@ -110,7 +110,13 @@ namespace VenueManager
           Plugin.Log.Warning($"Failed to log transaction: {response.StatusCode} - {error}");
           return new LogTransactionResult { Success = false, Error = error };
         }
-        return new LogTransactionResult { Success = true };
+        var body = await response.Content.ReadFromJsonAsync<XIVAppTransactionResponse>();
+        return new LogTransactionResult
+        {
+          Success = true,
+          ServiceId = body?.Transaction?.ServiceId,
+          ServiceStockCount = body?.Transaction?.ServiceStockCount,
+        };
       }
       catch (Exception ex)
       {

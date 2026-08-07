@@ -286,6 +286,23 @@ namespace VenueManager
   {
     public bool Success { get; set; }
     public string? Error { get; set; }
+    public string? ServiceId { get; set; }
+    public int? ServiceStockCount { get; set; }
+  }
+
+  internal class XIVAppTransactionResponse
+  {
+    [JsonPropertyName("transaction")]
+    public XIVAppTransactionResponseData? Transaction { get; set; }
+  }
+
+  internal class XIVAppTransactionResponseData
+  {
+    [JsonPropertyName("serviceId")]
+    public string? ServiceId { get; set; }
+
+    [JsonPropertyName("serviceStockCount")]
+    public int? ServiceStockCount { get; set; }
   }
 
   public class ShiftDto

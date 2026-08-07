@@ -248,6 +248,15 @@ public class SalesTab
         plugin.SessionSalesTotal += amount;
         plugin.SessionSalesCount++;
 
+        // Mirror the server's post-sale stock count locally so the
+        // dropdown and Inventory tab reflect the decrement immediately,
+        // instead of only after the next Fetch Venues.
+        if (result.ServiceStockCount.HasValue && result.ServiceId != null)
+        {
+          var sold = plugin.availableServices.Find(s => s.Id == result.ServiceId);
+          if (sold != null) sold.StockCount = result.ServiceStockCount;
+        }
+
         string verb = isTip ? "tip" : "sale";
         statusMessage = trimmedName != null
           ? $"Logged {amount}g {verb} from {trimmedName}"

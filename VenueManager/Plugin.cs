@@ -81,6 +81,8 @@ namespace VenueManager
     public volatile ShiftDto? activeShift = null;
     private long lastShiftPollMs = 0;
     private volatile bool shiftPollInFlight = false;
+    private long lastVipBannedPollMs = 0;
+    private volatile bool vipBannedPollInFlight = false;
     private volatile string? _shiftReminderShiftId = null;
     private long _shiftReminderLastMs = 0;
     // Mutex for all clock-in/clock-out operations regardless of which path
@@ -909,6 +911,21 @@ namespace VenueManager
       return true;
     }
 
+    // Re-keys a saved venue found by matching its physical location
+    // (world/ward/plot/room/type) rather than an exact id match. Covers the
+    // case MigrateLegacyHouseId() can't: a venue saved under the legacy
+    // interior-only id, first re-visited via the plot exterior, where the
+    // legacy id isn't computable at all (see HouseIdentity.cs).
+    private bool MigrateVenueByLocation(long newHouseId, uint worldId, int ward, int plot, int room, ushort type)
+    {
+      var match = venueList.venues.Values.FirstOrDefault(v =>
+        v.houseId != newHouseId &&
+        v.worldId == worldId && v.ward == ward && v.plot == plot && v.room == room && v.type == type);
+      if (match == null) return false;
+
+      return MigrateLegacyHouseId(match.houseId, newHouseId);
+    }
+
     // Refreshes the Server Info Bar entry text. Called every framework tick,
     // but the body throttles to ~2s so we don't re-allocate an SeString 60×/s
     // for a strip the player only glances at. Call with force=true to push
@@ -1078,6 +1095,40 @@ namespace VenueManager
     //   3. otherwise null (clears the cache)
     // Errors are swallowed silently — the DTR fallback is "Off shift"
     // which is a truthful display when we can't reach the server.
+    // VIP/banned patron lists were previously only loaded on plugin startup
+    // and the manual "Fetch Venues" button, so marking someone VIP/banned on
+    // the dashboard never reached the plugin without a manual resync. Polls
+    // every 30s instead, matching PollActiveShiftAsync's pattern.
+    private void PollVipBannedPatronsAsync()
+    {
+      if (vipBannedPollInFlight) return;
+      var nowMs = Environment.TickCount64;
+      if (nowMs - lastVipBannedPollMs < 30_000) return;
+      if (xivAppClient == null || !xivAppClient.IsConfigured) return;
+      if (string.IsNullOrEmpty(currentXivAppVenueId)) return;
+
+      vipBannedPollInFlight = true;
+      lastVipBannedPollMs = nowMs;
+      var venueId = currentXivAppVenueId;
+
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          xivAppVipPatrons = await xivAppClient.Venue.GetVipPatronsAsync(venueId);
+          xivAppBannedPatrons = await xivAppClient.Venue.GetBannedPatronsAsync(venueId);
+        }
+        catch (Exception ex)
+        {
+          Log.Warning($"VIP/banned patron poll failed: {ex.Message}");
+        }
+        finally
+        {
+          vipBannedPollInFlight = false;
+        }
+      });
+    }
+
     private void PollActiveShiftAsync()
     {
       if (shiftPollInFlight) return;
@@ -1134,6 +1185,7 @@ namespace VenueManager
       try
       {
         UpdateDtrBar();
+        PollVipBannedPatronsAsync();
 
         // Poll for standing on a plot exterior when nothing has flagged us
         // as in-house yet. Runs everywhere in the game world, not just near
@@ -1211,19 +1263,42 @@ namespace VenueManager
 
               // One-time self-heal: a house saved before exterior tracking
               // shipped may still be keyed under the legacy
-              // GetCurrentIndoorHouseId() value. Only worth checking while
-              // actually inside (that's the only state the legacy ID was
-              // ever computed from) and only when the composite ID isn't
-              // already a known venue. Deliberately NOT nested inside the
-              // "houseId just changed" branch below - if the player walked
-              // the exterior first, pluginState.currentHouse.houseId already
-              // equals computedHouseId (same physical plot, same formula) by
-              // the time they step inside, so no "change" is ever detected
-              // and a transition-gated migration would never run.
-              if (housingManager->IsInside() && !venueList.venues.ContainsKey(computedHouseId.Value))
+              // GetCurrentIndoorHouseId() value. Only worth checking when the
+              // composite ID isn't already a known venue. Deliberately NOT
+              // nested inside the "houseId just changed" branch below - if
+              // the player walked the exterior first, pluginState.currentHouse.houseId
+              // already equals computedHouseId (same physical plot, same
+              // formula) by the time they step inside, so no "change" is
+              // ever detected and a transition-gated migration would never run.
+              if (!venueList.venues.ContainsKey(computedHouseId.Value))
               {
-                var legacyHouseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
-                if (legacyHouseId != computedHouseId.Value && MigrateLegacyHouseId(legacyHouseId, computedHouseId.Value))
+                bool migrated = false;
+
+                // The legacy interior id genuinely isn't available while
+                // outside (see HouseIdentity.cs), so this path only fires
+                // once the player has stepped inside at least once.
+                if (housingManager->IsInside())
+                {
+                  var legacyHouseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
+                  if (legacyHouseId != computedHouseId.Value)
+                    migrated = MigrateLegacyHouseId(legacyHouseId, computedHouseId.Value);
+                }
+
+                // Fallback for the exterior-only case: match the saved venue
+                // by physical location instead of the unavailable legacy id.
+                // Works inside or outside, so a legacy-keyed venue heals on
+                // the very first exterior visit instead of requiring an
+                // interior visit first.
+                if (!migrated)
+                {
+                  var plotForMatch = housingManager->GetCurrentPlot() + 1;
+                  var wardForMatch = housingManager->GetCurrentWard() + 1;
+                  var roomForMatch = housingManager->GetCurrentRoom();
+                  var typeForMatch = (ushort)HousingManager.GetOriginalHouseTerritoryTypeId();
+                  migrated = MigrateVenueByLocation(computedHouseId.Value, currentWorldId, wardForMatch, plotForMatch, roomForMatch, typeForMatch);
+                }
+
+                if (migrated)
                 {
                   // Migration just made this id known, but nothing below
                   // will notice unless the block treats this as a fresh
@@ -1455,16 +1530,18 @@ namespace VenueManager
       var messageBuilder = new SeStringBuilder();
       var knownVenue = venueList.venues.ContainsKey(pluginState.currentHouse.houseId);
 
-      // Show text alert for self if the venue is known
+      // Sync/chat alerts are only meaningful at a venue you've registered -
+      // otherwise every house you walk into (yours or not) spams the same
+      // "has entered/left" line with no venue name to attach it to.
+      if (!knownVenue) return;
+
+      // Show text alert for self
       if (isSelf)
       {
-        if (knownVenue)
-        {
-          var venue = venueList.venues[pluginState.currentHouse.houseId];
-          if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
-          messageBuilder.AddText("You have entered " + venue.name);
-          Chat.Print(new XivChatEntry() { Message = messageBuilder.Build() });
-        }
+        var selfVenue = venueList.venues[pluginState.currentHouse.houseId];
+        if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
+        messageBuilder.AddText("You have entered " + selfVenue.name);
+        Chat.Print(new XivChatEntry() { Message = messageBuilder.Build() });
         return;
       }
 
@@ -1473,7 +1550,7 @@ namespace VenueManager
       // Skips already-here players when the greeter re-enters the venue.
       // Only fires at registered venues while a shift is active.
       var shift = activeShift;
-      if (!justEnteredHouse && knownVenue && shift != null && shift.Status == "ACTIVE")
+      if (!justEnteredHouse && shift != null && shift.Status == "ACTIVE")
       {
         if (player.entryCount == 1 && Configuration.enableGreeterMode && !string.IsNullOrWhiteSpace(Configuration.greeterMessage))
           SendGameChat($"/tell {player.Name}@{player.WorldName} {Configuration.greeterMessage}");
@@ -1534,15 +1611,8 @@ namespace VenueManager
       }
 
       // Venue Name
-      if (knownVenue)
-      {
-        var venue = venueList.venues[pluginState.currentHouse.houseId];
-        messageBuilder.AddText(" " + venue.name);
-      }
-      else
-      {
-        messageBuilder.AddText(" the " + TerritoryUtils.getHouseType(pluginState.territory));
-      }
+      var venue = venueList.venues[pluginState.currentHouse.houseId];
+      messageBuilder.AddText(" " + venue.name);
 
       messageBuilder.AddUiForegroundOff();
       Chat.Print(new XivChatEntry() { Message = messageBuilder.Build() });
@@ -1560,26 +1630,20 @@ namespace VenueManager
       // Don't show leave alerts if user just entered the building
       if (justEnteredHouse) return;
 
-      var messageBuilder = new SeStringBuilder();
-      var knownVenue = venueList.venues.ContainsKey(pluginState.currentHouse.houseId);
+      // Sync/chat alerts are only meaningful at a venue you've registered.
+      if (!venueList.venues.TryGetValue(pluginState.currentHouse.houseId, out var venue)) return;
 
-      // Add plugin name 
+      var messageBuilder = new SeStringBuilder();
+
+      // Add plugin name
       if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
 
-      // Add Player name 
+      // Add Player name
       messageBuilder.Add(new PlayerPayload(player.Name, player.homeWorld));
       messageBuilder.AddText(" has left");
 
       // Add Venue info
-      if (knownVenue)
-      {
-        var venue = venueList.venues[pluginState.currentHouse.houseId];
-        messageBuilder.AddText(" " + venue.name);
-      }
-      else
-      {
-        messageBuilder.AddText(" the " + TerritoryUtils.getHouseType(pluginState.territory));
-      }
+      messageBuilder.AddText(" " + venue.name);
 
       var entry = new XivChatEntry() { Message = messageBuilder.Build() };
       Chat.Print(entry);
