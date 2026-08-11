@@ -1,5 +1,7 @@
 using System;
 using System.Net.Http;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
 
 namespace VenueManager
 {
@@ -49,6 +51,71 @@ namespace VenueManager
     }
 
     public bool IsConfigured => !string.IsNullOrEmpty(_apiKey) && !string.IsNullOrEmpty(BaseUrl);
+
+    /// <summary>
+    /// GET a JSON response and extract a result from it, returning
+    /// <paramref name="fallback"/> if not configured, the request fails,
+    /// or an exception is thrown. Used by read-only endpoints where the
+    /// caller always wants a usable default rather than an exception.
+    /// </summary>
+    internal async Task<TResult> GetAsync<TResponse, TResult>(
+      string path,
+      Func<TResponse?, TResult> extract,
+      TResult fallback,
+      string errorContext)
+    {
+      if (!IsConfigured) return fallback;
+      try
+      {
+        var response = await Http.GetAsync($"{BaseUrl}{path}");
+        if (!response.IsSuccessStatusCode)
+        {
+          Plugin.Log.Warning($"Failed to {errorContext}: {response.StatusCode}");
+          return fallback;
+        }
+        var body = await response.Content.ReadFromJsonAsync<TResponse>();
+        return extract(body);
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error {errorContext}: {ex.Message}");
+        return fallback;
+      }
+    }
+
+    /// <summary>
+    /// POST a JSON request and produce a typed result, calling
+    /// <paramref name="notConfigured"/>/<paramref name="onFailure"/>/<paramref name="onSuccess"/>
+    /// to construct the appropriate result for each outcome. Used by
+    /// mutating endpoints where the caller always wants a typed
+    /// success/failure result rather than an exception.
+    /// </summary>
+    internal async Task<TResult> PostForResultAsync<TRequest, TResult>(
+      string path,
+      TRequest request,
+      string errorContext,
+      Func<TResult> notConfigured,
+      Func<string, TResult> onFailure,
+      Func<HttpContent, Task<TResult>> onSuccess)
+    {
+      if (!IsConfigured) return notConfigured();
+      try
+      {
+        var response = await Http.PostAsJsonAsync($"{BaseUrl}{path}", request);
+        if (!response.IsSuccessStatusCode)
+        {
+          var error = await response.Content.ReadAsStringAsync();
+          Plugin.Log.Warning($"Failed to {errorContext}: {response.StatusCode} - {error}");
+          return onFailure(error);
+        }
+        return await onSuccess(response.Content);
+      }
+      catch (Exception ex)
+      {
+        Plugin.Log.Warning($"Error {errorContext}: {ex.Message}");
+        return onFailure(ex.Message);
+      }
+    }
 
     public void Dispose() => Http.Dispose();
   }
