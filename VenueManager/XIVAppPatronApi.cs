@@ -81,7 +81,7 @@ namespace VenueManager
     /// embed has a real name to show. type defaults to "SALE" server-side
     /// when omitted - pass "TIP" to log a tip instead.
     /// </summary>
-    public async Task<LogTransactionResult> LogTransactionAsync(
+    public Task<LogTransactionResult> LogTransactionAsync(
       string venueId,
       string? serviceId,
       decimal amount,
@@ -89,40 +89,31 @@ namespace VenueManager
       string? notes = null,
       string? type = null)
     {
-      if (!_client.IsConfigured)
-        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
-
-      try
+      var request = new XIVAppTransactionRequest
       {
-        var request = new XIVAppTransactionRequest
+        VenueId = venueId,
+        ServiceId = serviceId,
+        Amount = amount,
+        CustomerName = customerName,
+        Notes = notes,
+        Type = type,
+      };
+      return _client.PostForResultAsync<XIVAppTransactionRequest, LogTransactionResult>(
+        "/api/plugin/transactions",
+        request,
+        "log transaction",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        async content =>
         {
-          VenueId = venueId,
-          ServiceId = serviceId,
-          Amount = amount,
-          CustomerName = customerName,
-          Notes = notes,
-          Type = type,
-        };
-        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/transactions", request);
-        if (!response.IsSuccessStatusCode)
-        {
-          var error = await response.Content.ReadAsStringAsync();
-          Plugin.Log.Warning($"Failed to log transaction: {response.StatusCode} - {error}");
-          return new LogTransactionResult { Success = false, Error = error };
-        }
-        var body = await response.Content.ReadFromJsonAsync<XIVAppTransactionResponse>();
-        return new LogTransactionResult
-        {
-          Success = true,
-          ServiceId = body?.Transaction?.ServiceId,
-          ServiceStockCount = body?.Transaction?.ServiceStockCount,
-        };
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error logging transaction: {ex.Message}");
-        return new LogTransactionResult { Success = false, Error = ex.Message };
-      }
+          var body = await content.ReadFromJsonAsync<XIVAppTransactionResponse>();
+          return new LogTransactionResult
+          {
+            Success = true,
+            ServiceId = body?.Transaction?.ServiceId,
+            ServiceStockCount = body?.Transaction?.ServiceStockCount,
+          };
+        });
     }
 
     /// <summary>
@@ -131,34 +122,22 @@ namespace VenueManager
     /// Patron row server-side, so this works even for a character with
     /// no prior visit history.
     /// </summary>
-    public async Task<LogTransactionResult> BanPatronAsync(string venueId, string characterName, string world, string reason)
+    public Task<LogTransactionResult> BanPatronAsync(string venueId, string characterName, string world, string reason)
     {
-      if (!_client.IsConfigured)
-        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
-
-      try
+      var request = new XIVAppBanPatronRequest
       {
-        var request = new XIVAppBanPatronRequest
-        {
-          VenueId = venueId,
-          CharacterName = characterName,
-          World = world,
-          Reason = reason,
-        };
-        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/patrons/ban", request);
-        if (!response.IsSuccessStatusCode)
-        {
-          var error = await response.Content.ReadAsStringAsync();
-          Plugin.Log.Warning($"Failed to ban patron: {response.StatusCode} - {error}");
-          return new LogTransactionResult { Success = false, Error = error };
-        }
-        return new LogTransactionResult { Success = true };
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error banning patron: {ex.Message}");
-        return new LogTransactionResult { Success = false, Error = ex.Message };
-      }
+        VenueId = venueId,
+        CharacterName = characterName,
+        World = world,
+        Reason = reason,
+      };
+      return _client.PostForResultAsync<XIVAppBanPatronRequest, LogTransactionResult>(
+        "/api/plugin/patrons/ban",
+        request,
+        "ban patron",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        _ => Task.FromResult(new LogTransactionResult { Success = true }));
     }
   }
 }
