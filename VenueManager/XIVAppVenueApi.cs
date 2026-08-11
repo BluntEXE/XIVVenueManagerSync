@@ -45,227 +45,102 @@ namespace VenueManager
       }
     }
 
-    public async Task<ServicesResponse?> GetServicesAsync(string venueId)
+    public Task<ServicesResponse?> GetServicesAsync(string venueId) =>
+      _client.GetAsync<ServicesResponse, ServicesResponse?>(
+        $"/api/plugin/services?venueId={venueId}",
+        r => r,
+        null,
+        "fetch services");
+
+    public Task<List<Role>> GetRolesAsync(string venueId) =>
+      _client.GetAsync<RolesResponse, List<Role>>(
+        $"/api/plugin/roles?venueId={venueId}",
+        r => r?.Roles ?? new List<Role>(),
+        new List<Role>(),
+        "get roles");
+
+    public Task<List<VipPatron>> GetVipPatronsAsync(string venueId) =>
+      _client.GetAsync<VipPatronsResponse, List<VipPatron>>(
+        $"/api/plugin/patrons/vip?venueId={venueId}",
+        r => r?.VipPatrons ?? new List<VipPatron>(),
+        new List<VipPatron>(),
+        "get VIP patrons");
+
+    public Task<List<BannedPatron>> GetBannedPatronsAsync(string venueId) =>
+      _client.GetAsync<BannedPatronsResponse, List<BannedPatron>>(
+        $"/api/plugin/patrons/banned?venueId={venueId}",
+        r => r?.BannedPatrons ?? new List<BannedPatron>(),
+        new List<BannedPatron>(),
+        "get banned patrons");
+
+    public Task<ActiveEventResponse?> GetActiveEventAsync(string venueId) =>
+      _client.GetAsync<ActiveEventResponse, ActiveEventResponse?>(
+        $"/api/plugin/events/active?venueId={Uri.EscapeDataString(venueId)}",
+        r => r,
+        new ActiveEventResponse { Active = false },
+        "fetch active event");
+
+    public Task<List<Room>> GetRoomsAsync(string venueId) =>
+      _client.GetAsync<RoomsResponse, List<Room>>(
+        $"/api/plugin/rooms?venueId={venueId}",
+        r => r?.Rooms ?? new List<Room>(),
+        new List<Room>(),
+        "get rooms");
+
+    public Task<LogTransactionResult> SetRoomStatusAsync(string venueId, string roomId, bool isOccupied, string? note)
     {
-      if (!_client.IsConfigured) return null;
-      try
+      var request = new XIVAppSetRoomStatusRequest
       {
-        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/services?venueId={venueId}");
-        if (!response.IsSuccessStatusCode) return null;
-        return await response.Content.ReadFromJsonAsync<ServicesResponse>();
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error fetching services: {ex.Message}");
-        return null;
-      }
+        VenueId = venueId,
+        RoomId = roomId,
+        IsOccupied = isOccupied,
+        Note = note,
+      };
+      return _client.PostForResultAsync<XIVAppSetRoomStatusRequest, LogTransactionResult>(
+        "/api/plugin/rooms/status",
+        request,
+        "set room status",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        _ => Task.FromResult(new LogTransactionResult { Success = true }));
     }
 
-    public async Task<List<Role>> GetRolesAsync(string venueId)
+    public Task<bool> GetInventoryEnabledAsync(string venueId) =>
+      _client.GetAsync<XIVAppInventorySettingsResponse, bool>(
+        $"/api/plugin/inventory-settings?venueId={venueId}",
+        r => r?.Enabled ?? false,
+        false,
+        "get inventory settings");
+
+    public Task<LogTransactionResult> LinkItemAsync(string venueId, string serviceId, int itemId, string itemName, int? iconId)
     {
-      if (!_client.IsConfigured) return new List<Role>();
-      try
+      var request = new XIVAppLinkItemRequest
       {
-        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/roles?venueId={venueId}");
-        if (!response.IsSuccessStatusCode)
-        {
-          Plugin.Log.Warning($"Failed to get roles: {response.StatusCode}");
-          return new List<Role>();
-        }
-        var result = await response.Content.ReadFromJsonAsync<RolesResponse>();
-        return result?.Roles ?? new List<Role>();
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error fetching roles: {ex.Message}");
-        return new List<Role>();
-      }
+        VenueId = venueId,
+        ServiceId = serviceId,
+        ItemId = itemId,
+        ItemName = itemName,
+        IconId = iconId,
+      };
+      return _client.PostForResultAsync<XIVAppLinkItemRequest, LogTransactionResult>(
+        "/api/plugin/inventory/link-item",
+        request,
+        "link item",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        _ => Task.FromResult(new LogTransactionResult { Success = true }));
     }
 
-    public async Task<List<VipPatron>> GetVipPatronsAsync(string venueId)
+    public Task<LogTransactionResult> RestockAsync(string venueId, string serviceId, int stockCount)
     {
-      if (!_client.IsConfigured) return new List<VipPatron>();
-      try
-      {
-        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/patrons/vip?venueId={venueId}");
-        if (!response.IsSuccessStatusCode)
-        {
-          Plugin.Log.Warning($"Failed to get VIP patrons: {response.StatusCode}");
-          return new List<VipPatron>();
-        }
-        var result = await response.Content.ReadFromJsonAsync<VipPatronsResponse>();
-        return result?.VipPatrons ?? new List<VipPatron>();
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error fetching VIP patrons: {ex.Message}");
-        return new List<VipPatron>();
-      }
-    }
-
-    public async Task<List<BannedPatron>> GetBannedPatronsAsync(string venueId)
-    {
-      if (!_client.IsConfigured) return new List<BannedPatron>();
-      try
-      {
-        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/patrons/banned?venueId={venueId}");
-        if (!response.IsSuccessStatusCode)
-        {
-          Plugin.Log.Warning($"Failed to get banned patrons: {response.StatusCode}");
-          return new List<BannedPatron>();
-        }
-        var result = await response.Content.ReadFromJsonAsync<BannedPatronsResponse>();
-        return result?.BannedPatrons ?? new List<BannedPatron>();
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error fetching banned patrons: {ex.Message}");
-        return new List<BannedPatron>();
-      }
-    }
-
-    public async Task<ActiveEventResponse?> GetActiveEventAsync(string venueId)
-    {
-      if (!_client.IsConfigured) return null;
-      try
-      {
-        var response = await _client.Http.GetAsync(
-          $"{_client.BaseUrl}/api/plugin/events/active?venueId={Uri.EscapeDataString(venueId)}");
-        if (!response.IsSuccessStatusCode)
-        {
-          Plugin.Log.Debug($"GetActiveEventAsync {venueId}: {response.StatusCode}");
-          return new ActiveEventResponse { Active = false };
-        }
-        return await response.Content.ReadFromJsonAsync<ActiveEventResponse>();
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error fetching active event: {ex.Message}");
-        return null;
-      }
-    }
-
-    public async Task<List<Room>> GetRoomsAsync(string venueId)
-    {
-      if (!_client.IsConfigured) return new List<Room>();
-      try
-      {
-        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/rooms?venueId={venueId}");
-        if (!response.IsSuccessStatusCode)
-        {
-          Plugin.Log.Warning($"Failed to get rooms: {response.StatusCode}");
-          return new List<Room>();
-        }
-        var result = await response.Content.ReadFromJsonAsync<RoomsResponse>();
-        return result?.Rooms ?? new List<Room>();
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error fetching rooms: {ex.Message}");
-        return new List<Room>();
-      }
-    }
-
-    public async Task<LogTransactionResult> SetRoomStatusAsync(string venueId, string roomId, bool isOccupied, string? note)
-    {
-      if (!_client.IsConfigured)
-        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
-
-      try
-      {
-        var request = new XIVAppSetRoomStatusRequest
-        {
-          VenueId = venueId,
-          RoomId = roomId,
-          IsOccupied = isOccupied,
-          Note = note,
-        };
-        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/rooms/status", request);
-        if (!response.IsSuccessStatusCode)
-        {
-          var error = await response.Content.ReadAsStringAsync();
-          Plugin.Log.Warning($"Failed to set room status: {response.StatusCode} - {error}");
-          return new LogTransactionResult { Success = false, Error = error };
-        }
-        return new LogTransactionResult { Success = true };
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error setting room status: {ex.Message}");
-        return new LogTransactionResult { Success = false, Error = ex.Message };
-      }
-    }
-
-    public async Task<bool> GetInventoryEnabledAsync(string venueId)
-    {
-      if (!_client.IsConfigured) return false;
-      try
-      {
-        var response = await _client.Http.GetAsync($"{_client.BaseUrl}/api/plugin/inventory-settings?venueId={venueId}");
-        if (!response.IsSuccessStatusCode) return false;
-        var result = await response.Content.ReadFromJsonAsync<XIVAppInventorySettingsResponse>();
-        return result?.Enabled ?? false;
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error fetching inventory settings: {ex.Message}");
-        return false;
-      }
-    }
-
-    public async Task<LogTransactionResult> LinkItemAsync(string venueId, string serviceId, int itemId, string itemName, int? iconId)
-    {
-      if (!_client.IsConfigured)
-        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
-
-      try
-      {
-        var request = new XIVAppLinkItemRequest
-        {
-          VenueId = venueId,
-          ServiceId = serviceId,
-          ItemId = itemId,
-          ItemName = itemName,
-          IconId = iconId,
-        };
-        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/inventory/link-item", request);
-        if (!response.IsSuccessStatusCode)
-        {
-          var error = await response.Content.ReadAsStringAsync();
-          Plugin.Log.Warning($"Failed to link item: {response.StatusCode} - {error}");
-          return new LogTransactionResult { Success = false, Error = error };
-        }
-        return new LogTransactionResult { Success = true };
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error linking item: {ex.Message}");
-        return new LogTransactionResult { Success = false, Error = ex.Message };
-      }
-    }
-
-    public async Task<LogTransactionResult> RestockAsync(string venueId, string serviceId, int stockCount)
-    {
-      if (!_client.IsConfigured)
-        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
-
-      try
-      {
-        var request = new XIVAppRestockRequest { VenueId = venueId, ServiceId = serviceId, StockCount = stockCount };
-        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/inventory/restock", request);
-        if (!response.IsSuccessStatusCode)
-        {
-          var error = await response.Content.ReadAsStringAsync();
-          Plugin.Log.Warning($"Failed to restock: {response.StatusCode} - {error}");
-          return new LogTransactionResult { Success = false, Error = error };
-        }
-        return new LogTransactionResult { Success = true };
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error restocking: {ex.Message}");
-        return new LogTransactionResult { Success = false, Error = ex.Message };
-      }
+      var request = new XIVAppRestockRequest { VenueId = venueId, ServiceId = serviceId, StockCount = stockCount };
+      return _client.PostForResultAsync<XIVAppRestockRequest, LogTransactionResult>(
+        "/api/plugin/inventory/restock",
+        request,
+        "restock",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        _ => Task.FromResult(new LogTransactionResult { Success = true }));
     }
   }
 }
