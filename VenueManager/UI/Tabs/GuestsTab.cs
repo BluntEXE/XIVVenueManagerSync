@@ -12,9 +12,15 @@ using VenueManager.Widgets;
 
 namespace VenueManager.Tabs;
 
-public class GuestsTab
+public class GuestsTab : ITab
 {
   private Plugin plugin;
+
+  public string Name => "Patrons";
+  public FontAwesomeIcon Icon => FontAwesomeIcon.UserFriends;
+  public string Tooltip => "Patrons";
+  public bool IsVisible => plugin.Configuration.showGuestsTab;
+
   private GuestListWidget guestListWidget;
 
   public GuestsTab(Plugin plugin)

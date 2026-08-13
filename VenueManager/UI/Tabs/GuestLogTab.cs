@@ -1,12 +1,19 @@
+using Dalamud.Interface;
 using Dalamud.Bindings.ImGui;
 using VenueManager.UI;
 using VenueManager.Widgets;
 
 namespace VenueManager.Tabs;
 
-public class GuestLogTab
+public class GuestLogTab : ITab
 {
   private Plugin plugin;
+
+  public string Name => "History";
+  public FontAwesomeIcon Icon => FontAwesomeIcon.History;
+  public string Tooltip => "History";
+  public bool IsVisible => plugin.Configuration.showGuestsTab;
+
   private GuestListWidget guestListWidget;
 
   // Current venue selected for logs 
