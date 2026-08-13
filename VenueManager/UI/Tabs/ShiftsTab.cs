@@ -5,13 +5,19 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
-public class ShiftsTab
+public class ShiftsTab : ITab
 {
   private Plugin plugin;
+
+  public string Name => "My Shift";
+  public FontAwesomeIcon Icon => FontAwesomeIcon.CalendarCheck;
+  public string Tooltip => "My Shift";
+  public bool IsVisible => true;
 
   private List<ShiftDto> shifts = new();
   private List<OpenShiftDto> openShifts = new();

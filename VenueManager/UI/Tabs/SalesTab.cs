@@ -9,9 +9,14 @@ using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
-public class SalesTab
+public class SalesTab : ITab
 {
   private Plugin plugin;
+
+  public string Name => "Sales";
+  public FontAwesomeIcon Icon => FontAwesomeIcon.DollarSign;
+  public string Tooltip => "Sales";
+  public bool IsVisible => true;
 
   // Form state — persists across frames because the tab instance is
   // long-lived (constructed once in MainWindow).

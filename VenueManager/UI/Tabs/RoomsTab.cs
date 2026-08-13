@@ -2,13 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
-public class RoomsTab
+public class RoomsTab : ITab
 {
   private Plugin plugin;
+
+  public string Name => "Rooms";
+  public FontAwesomeIcon Icon => FontAwesomeIcon.DoorOpen;
+  public string Tooltip => "Rooms";
+  public bool IsVisible => true;
 
   private List<Room> rooms = new();
   private bool loading = false;
