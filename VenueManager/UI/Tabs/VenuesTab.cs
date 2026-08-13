@@ -11,11 +11,16 @@ using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
-public class VenuesTab
+public class VenuesTab : ITab
 {
   private Plugin plugin;
 
-  // Venue name inside input box 
+  public string Name => "Venues";
+  public FontAwesomeIcon Icon => FontAwesomeIcon.Building;
+  public string Tooltip => "Venues";
+  public bool IsVisible => plugin.Configuration.showVenueTab;
+
+  // Venue name inside input box
   private string venueName = string.Empty;
 
   public VenuesTab(Plugin plugin)

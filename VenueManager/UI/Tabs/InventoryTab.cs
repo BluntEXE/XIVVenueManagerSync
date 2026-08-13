@@ -2,14 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
+using Dalamud.Interface;
 using Dalamud.Bindings.ImGui;
 using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
-public class InventoryTab
+public class InventoryTab : ITab
 {
   private Plugin plugin;
+
+  public string Name => "Inventory";
+  public FontAwesomeIcon Icon => FontAwesomeIcon.WineGlass;
+  public string Tooltip => "Inventory";
+  public bool IsVisible => plugin.xivAppInventoryEnabled;
+
   private string searchQuery = "";
   private List<ItemSearchResult> searchResults = new();
   private string? linkingServiceId = null;
