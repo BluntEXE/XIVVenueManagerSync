@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
@@ -14,17 +16,16 @@ public class MainWindow : Window, IDisposable
     private Plugin plugin;
     private Configuration configuration;
 
-    private VenuesTab venuesTab;
-    private SettingsTab settingsTab;
-    private GuestsTab guestsTab;
-    private GuestLogTab guestLogTab;
+    // salesTab and settingsTab keep dedicated typed fields alongside the
+    // list below: salesTab because PrefillSale() needs its Prefill() method
+    // (not part of ITab — a single caller doesn't earn an interface member),
+    // settingsTab because it's pinned to the bottom of the sidebar and is
+    // the first-run override target, both of which are unique to it.
     private SalesTab salesTab;
-    private ShiftsTab shiftsTab;
-    private RoomsTab roomsTab;
-    private InventoryTab inventoryTab;
+    private SettingsTab settingsTab;
+    private List<ITab> tabs;
 
-    private enum Tab { Patrons, Sales, History, Shift, Rooms, Inventory, Venues, Settings }
-    private Tab _currentTab = Tab.Sales;
+    private ITab _currentTab;
 
     // Sidebar layout constants
     private const float SidebarWidth  = 46f;
@@ -44,14 +45,24 @@ public class MainWindow : Window, IDisposable
 
         this.plugin        = plugin;
         this.configuration = plugin.Configuration;
-        this.venuesTab     = new VenuesTab(plugin);
-        this.settingsTab   = new SettingsTab(plugin);
-        this.guestsTab     = new GuestsTab(plugin);
-        this.guestLogTab   = new GuestLogTab(plugin);
+
         this.salesTab      = new SalesTab(plugin);
-        this.shiftsTab     = new ShiftsTab(plugin);
-        this.roomsTab      = new RoomsTab(plugin);
-        this.inventoryTab  = new InventoryTab(plugin);
+        this.settingsTab   = new SettingsTab(plugin);
+
+        // Order here is nav-icon draw order — matches today's exact order.
+        this.tabs = new List<ITab>
+        {
+            new GuestsTab(plugin),
+            salesTab,
+            new GuestLogTab(plugin),
+            new ShiftsTab(plugin),
+            new RoomsTab(plugin),
+            new InventoryTab(plugin),
+            new VenuesTab(plugin),
+            settingsTab,
+        };
+
+        _currentTab = salesTab;
     }
 
     public void Dispose() { }
@@ -59,18 +70,8 @@ public class MainWindow : Window, IDisposable
     // Called by slash commands to jump to a named tab.
     public void OpenTab(string name)
     {
-        _currentTab = name switch
-        {
-            "Patrons"  => Tab.Patrons,
-            "Sales"    => Tab.Sales,
-            "History"  => Tab.History,
-            "My Shift" => Tab.Shift,
-            "Rooms"    => Tab.Rooms,
-            "Inventory" => Tab.Inventory,
-            "Venues"   => Tab.Venues,
-            "Settings" => Tab.Settings,
-            _          => _currentTab,
-        };
+        var match = tabs.FirstOrDefault(t => t.Name == name);
+        if (match != null) _currentTab = match;
     }
 
     // Forward a prefill request to the Sales tab.
@@ -84,7 +85,7 @@ public class MainWindow : Window, IDisposable
         {
             // First-run: no API key → show Settings.
             if (string.IsNullOrEmpty(configuration.xivAppApiKey))
-                _currentTab = Tab.Settings;
+                _currentTab = settingsTab;
 
             drawHeader();
             drawSidebarAndContent();
@@ -174,33 +175,21 @@ public class MainWindow : Window, IDisposable
     {
         ImGui.Spacing();
 
-        if (configuration.showGuestsTab)
-            navButton(Tab.Patrons,  FontAwesomeIcon.UserFriends, "Patrons");
-
-        navButton(Tab.Sales,   FontAwesomeIcon.DollarSign,      "Sales");
-
-        if (configuration.showGuestsTab)
-            navButton(Tab.History, FontAwesomeIcon.History, "History");
-
-        navButton(Tab.Shift,   FontAwesomeIcon.CalendarCheck,   "My Shift");
-
-        navButton(Tab.Rooms,   FontAwesomeIcon.DoorOpen,        "Rooms");
-
-        if (plugin.xivAppInventoryEnabled)
-            navButton(Tab.Inventory, FontAwesomeIcon.WineGlass, "Inventory");
-
-        if (configuration.showVenueTab)
-            navButton(Tab.Venues, FontAwesomeIcon.Building, "Venues");
+        foreach (var tab in tabs)
+        {
+            if (tab == settingsTab) continue; // pinned to bottom, drawn separately below
+            if (tab.IsVisible) navButton(tab);
+        }
 
         // Settings pinned to bottom
         float iconH   = NavButtonSize + ImGui.GetStyle().ItemSpacing.Y;
         float spaceH  = ImGui.GetContentRegionAvail().Y - iconH;
         if (spaceH > 0) ImGui.Dummy(new Vector2(1f, spaceH));
 
-        navButton(Tab.Settings, FontAwesomeIcon.Cog, "Settings");
+        navButton(settingsTab);
     }
 
-    private void navButton(Tab tab, FontAwesomeIcon icon, string tooltip)
+    private void navButton(ITab tab)
     {
         bool active = _currentTab == tab;
 
@@ -212,7 +201,7 @@ public class MainWindow : Window, IDisposable
 
         ImGui.PushFont(UiBuilder.IconFont);
         bool clicked = ImGui.Button(
-            $"{icon.ToIconString()}##nav{tab}",
+            $"{tab.Icon.ToIconString()}##nav{tab.Name}",
             new Vector2(SidebarWidth - 8f, NavButtonSize));
         ImGui.PopFont();
 
@@ -221,28 +210,19 @@ public class MainWindow : Window, IDisposable
         if (clicked) _currentTab = tab;
 
         if (ImGui.IsItemHovered())
-            ImGui.SetTooltip(tooltip);
+            ImGui.SetTooltip(tab.Tooltip);
     }
 
     // ── Tab content ─────────────────────────────────────────────────────────
     private void drawTabContent()
     {
-        // Guard: if selected tab is hidden, fall back to Sales.
-        if (_currentTab == Tab.Patrons  && !configuration.showGuestsTab) _currentTab = Tab.Sales;
-        if (_currentTab == Tab.History  && !configuration.showGuestsTab) _currentTab = Tab.Sales;
-        if (_currentTab == Tab.Venues   && !configuration.showVenueTab)  _currentTab = Tab.Sales;
-        if (_currentTab == Tab.Inventory && !plugin.xivAppInventoryEnabled) _currentTab = Tab.Sales;
+        // Guard: if selected tab is hidden (e.g. its owning config toggle
+        // was flipped off from Settings this frame), fall back to Sales.
+        // Settings itself is exempt — it's always visible and is the
+        // first-run override target.
+        if (_currentTab != settingsTab && !_currentTab.IsVisible)
+            _currentTab = salesTab;
 
-        switch (_currentTab)
-        {
-            case Tab.Patrons:   guestsTab.draw();    break;
-            case Tab.Sales:     salesTab.draw();     break;
-            case Tab.History:   guestLogTab.draw();  break;
-            case Tab.Shift:     shiftsTab.draw();    break;
-            case Tab.Rooms:     roomsTab.draw();     break;
-            case Tab.Inventory: inventoryTab.draw(); break;
-            case Tab.Venues:    venuesTab.draw();    break;
-            case Tab.Settings:  settingsTab.draw();  break;
-        }
+        _currentTab.draw();
     }
 }
