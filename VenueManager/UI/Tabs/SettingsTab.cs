@@ -22,10 +22,15 @@ using VenueManager.UI;
 
 namespace VenueManager.Tabs;
 
-public class SettingsTab
+public class SettingsTab : ITab
 {
   private Plugin plugin;
   private Configuration configuration;
+
+  public string Name => "Settings";
+  public FontAwesomeIcon Icon => FontAwesomeIcon.Cog;
+  public string Tooltip => "Settings";
+  public bool IsVisible => true;
 
   // Status line shown under Fetch Venues so users see success/failure of
   // button-press actions instead of a silent no-op. Updated by the async
