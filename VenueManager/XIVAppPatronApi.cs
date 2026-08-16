@@ -13,65 +13,41 @@ namespace VenueManager
       _client = client;
     }
 
-    public async Task<bool> LogPatronVisitAsync(string venueId, string characterName, string world, string action)
+    public Task<bool> LogPatronVisitAsync(string venueId, string characterName, string world, string action)
     {
-      if (!_client.IsConfigured)
-        throw new XIVAppApiException("API not configured. Please set your API key in settings.");
-
-      try
+      var request = new XIVAppPatronVisitRequest
       {
-        var request = new XIVAppPatronVisitRequest
-        {
-          VenueId = venueId,
-          CharacterName = characterName,
-          World = world,
-          Action = action,
-          Timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-        };
-        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/patron-visits", request);
-        if (!response.IsSuccessStatusCode)
-        {
-          var error = await response.Content.ReadAsStringAsync();
-          Plugin.Log.Warning($"Failed to log patron visit: {response.StatusCode} - {error}");
-          return false;
-        }
-        return true;
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error logging patron visit: {ex.Message}");
-        return false;
-      }
+        VenueId = venueId,
+        CharacterName = characterName,
+        World = world,
+        Action = action,
+        Timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+      };
+      return _client.PostForResultAsync<XIVAppPatronVisitRequest, bool>(
+        "/api/plugin/patron-visits",
+        request,
+        "log patron visit",
+        () => throw new XIVAppApiException("API not configured. Please set your API key in settings."),
+        _ => false,
+        _ => Task.FromResult(true));
     }
 
-    public async Task<bool> LogServiceAsync(string venueId, string guestName, int amount, string? notes = null)
+    public Task<bool> LogServiceAsync(string venueId, string guestName, int amount, string? notes = null)
     {
-      if (!_client.IsConfigured)
-        throw new XIVAppApiException("API not configured. Please set your API key in settings.");
-
-      try
+      var request = new XIVAppServiceRequest
       {
-        var request = new XIVAppServiceRequest
-        {
-          VenueId = venueId,
-          GuestName = guestName,
-          Amount = amount,
-          Notes = notes,
-        };
-        var response = await _client.Http.PostAsJsonAsync($"{_client.BaseUrl}/api/plugin/services", request);
-        if (!response.IsSuccessStatusCode)
-        {
-          var error = await response.Content.ReadAsStringAsync();
-          Plugin.Log.Warning($"Failed to log service: {response.StatusCode} - {error}");
-          return false;
-        }
-        return true;
-      }
-      catch (Exception ex)
-      {
-        Plugin.Log.Warning($"Error logging service: {ex.Message}");
-        return false;
-      }
+        VenueId = venueId,
+        GuestName = guestName,
+        Amount = amount,
+        Notes = notes,
+      };
+      return _client.PostForResultAsync<XIVAppServiceRequest, bool>(
+        "/api/plugin/services",
+        request,
+        "log service",
+        () => throw new XIVAppApiException("API not configured. Please set your API key in settings."),
+        _ => false,
+        _ => Task.FromResult(true));
     }
 
     /// <summary>
