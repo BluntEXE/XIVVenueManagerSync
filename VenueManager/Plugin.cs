@@ -10,6 +10,7 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Game.Text;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 using System.Collections.Generic;
@@ -452,20 +453,29 @@ namespace VenueManager
     }
 
     // Used by `/xvm sale!` — see ARCHITECTURE.md § Slash commands
-    public async Task LogSaleSilentAsync(int amount, string? customer)
+    // Computes the chat prefix and checks XIV-App is configured with a venue selected,
+    // printing the appropriate error and returning false if not ready.
+    [MemberNotNullWhen(true, nameof(xivAppClient), nameof(currentXivAppVenueId))]
+    private bool TryGetChatPrefix(out string prefix)
     {
-      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
+      prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
 
       if (xivAppClient == null || !xivAppClient.IsConfigured)
       {
         Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
-        return;
+        return false;
       }
       if (string.IsNullOrEmpty(currentXivAppVenueId))
       {
         Chat.Print(prefix + "No venue selected. Pick one in Settings.");
-        return;
+        return false;
       }
+      return true;
+    }
+
+    public async Task LogSaleSilentAsync(int amount, string? customer)
+    {
+      if (!TryGetChatPrefix(out string prefix)) return;
 
       try
       {
@@ -501,18 +511,7 @@ namespace VenueManager
     // Used by `/xvm tip!` — same shape as LogSaleSilentAsync, tagged type="TIP"
     public async Task LogTipSilentAsync(int amount, string? customer)
     {
-      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
-
-      if (xivAppClient == null || !xivAppClient.IsConfigured)
-      {
-        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
-        return;
-      }
-      if (string.IsNullOrEmpty(currentXivAppVenueId))
-      {
-        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
-        return;
-      }
+      if (!TryGetChatPrefix(out string prefix)) return;
 
       try
       {
@@ -549,18 +548,7 @@ namespace VenueManager
     // Used by `/xvm ban!` — server finds-or-creates the Patron row
     public async Task BanPatronSilentAsync(string characterName, string world, string reason)
     {
-      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
-
-      if (xivAppClient == null || !xivAppClient.IsConfigured)
-      {
-        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
-        return;
-      }
-      if (string.IsNullOrEmpty(currentXivAppVenueId))
-      {
-        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
-        return;
-      }
+      if (!TryGetChatPrefix(out string prefix)) return;
 
       try
       {
@@ -585,18 +573,7 @@ namespace VenueManager
     // Used by `/xvm start` — clocks into the first SCHEDULED shift
     public async Task ShiftClockInSilentAsync()
     {
-      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
-
-      if (xivAppClient == null || !xivAppClient.IsConfigured)
-      {
-        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
-        return;
-      }
-      if (string.IsNullOrEmpty(currentXivAppVenueId))
-      {
-        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
-        return;
-      }
+      if (!TryGetChatPrefix(out string prefix)) return;
 
       if (!await clockSem.WaitAsync(0))
       {
@@ -637,18 +614,7 @@ namespace VenueManager
     // Used by `/xvm end` — clocks out of the first ACTIVE shift
     public async Task ShiftClockOutSilentAsync()
     {
-      string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
-
-      if (xivAppClient == null || !xivAppClient.IsConfigured)
-      {
-        Chat.Print(prefix + "XIV-App is not configured. Add your API key in Settings first.");
-        return;
-      }
-      if (string.IsNullOrEmpty(currentXivAppVenueId))
-      {
-        Chat.Print(prefix + "No venue selected. Pick one in Settings.");
-        return;
-      }
+      if (!TryGetChatPrefix(out string prefix)) return;
 
       if (!await clockSem.WaitAsync(0))
       {
