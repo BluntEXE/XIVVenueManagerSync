@@ -32,15 +32,11 @@ public class SettingsTab : ITab
   public string Tooltip => "Settings";
   public bool IsVisible => true;
 
-  // Status line shown under Fetch Venues so users see success/failure of
-  // button-press actions instead of a silent no-op. Updated by the async
-  // Fetch* methods below. Default color is the muted overlay so a fresh
-  // "Fetching…" line reads as in-progress, not success/failure.
+  // Status line under Fetch Venues — set by the async Fetch* methods below
   private string xivAppStatus = "";
   private Vector4 xivAppStatusColor = Colors.XivOverlay0;
 
-  // UI-only toggle — not persisted. Keys are sensitive; default hidden so
-  // screenshots/shares don't leak. Flipped by the eye icon next to the input.
+  // Not persisted; default hidden so screenshots/shares don't leak the key
   private bool showApiKey = false;
 
   private const string DefaultServerUrl = "https://xivvenuemanager.com";
@@ -55,7 +51,6 @@ public class SettingsTab : ITab
     this.configuration = plugin.Configuration;
   }
 
-  // Draw settings menu
   public unsafe void draw()
   {
     ImGui.BeginChild("SettingsRoot");
@@ -64,8 +59,7 @@ public class SettingsTab : ITab
     if (string.IsNullOrEmpty(this.configuration.xivAppApiKey))
       DrawWelcomeBanner();
 
-    // XIV-App Sync is the plugin's primary workflow — surface it first so a
-    // fresh install lands on the setup the user actually needs to do.
+    // Primary workflow — surface first so a fresh install lands on the setup it needs
     DrawXivAppSettings();
 
     DrawSectionSeparator();
@@ -117,15 +111,12 @@ public class SettingsTab : ITab
 
   // -- Section helpers ------------------------------------------------------
 
-  // Single separator rhythm across the tab. Previously mixed Separator() and
-  // Separator()+Spacing() — now every break is identical.
   private static void DrawSectionSeparator()
   {
     ImGui.Separator();
     ImGui.Spacing();
   }
 
-  // Blue accent lets users scan section boundaries at a glance on a long tab.
   private static void DrawSectionHeader(string label)
   {
     ImGui.TextColored(Colors.XivBlue, label);
@@ -143,7 +134,6 @@ public class SettingsTab : ITab
     }
     ImGui.Indent(20);
 
-    // Guest tab sub settings
     if (!this.configuration.showGuestsTab) ImGui.BeginDisabled();
     ImGui.TextWrapped("Hiding the Patrons Tab also disables chat/sound alerts and stops logging patron visits to the XVM Website entirely - no Live dashboard or Analytics data will be recorded while this is off.");
     if (!this.configuration.showGuestsTab) ImGui.EndDisabled();
@@ -163,10 +153,7 @@ public class SettingsTab : ITab
   }
 
   // -- Status Bar (DTR) -----------------------------------------------------
-  //
-  // Lets users pick what (if anything) the plugin surfaces in the game's
-  // world/time strip. Dalamud already handles show/hide + reordering via
-  // /xlsettings → Server Info Bar, so we only own the *content*.
+  // Only owns content — Dalamud handles show/hide + reordering via /xlsettings
   private void DrawDtrSettings()
   {
     ImGui.TextWrapped("Show a short plugin status in the game's Server Info Bar (where world/time displays). Reorder or hide via Dalamud settings → Server Info Bar.");
@@ -242,8 +229,7 @@ public class SettingsTab : ITab
 
   private void DrawPatronChatAlerts()
   {
-    // Chat + sound alerts both depend on the Patrons tab being visible — the
-    // whole subtree reads patron events that the tab owns.
+    // Depends on Patrons tab being visible — it owns the patron events this subtree reads
     if (!this.configuration.showGuestsTab) ImGui.BeginDisabled();
 
     DrawSectionHeader("Patron Chat Alerts");
@@ -256,7 +242,6 @@ public class SettingsTab : ITab
 
     if (!this.configuration.showChatAlerts) ImGui.BeginDisabled();
     ImGui.Indent(20);
-    // Entry Alerts
     var showChatAlertEntry = this.configuration.showChatAlertEntry;
     if (ImGui.Checkbox("Entry Alerts", ref showChatAlertEntry))
     {
@@ -268,7 +253,6 @@ public class SettingsTab : ITab
       ImGui.SetTooltip("Display chat message when a patron enters a venue");
     }
 
-    // Reentry Alerts
     var showChatAlertReentry = this.configuration.showChatAlertReentry;
     if (ImGui.Checkbox("Re-entry Alerts", ref showChatAlertReentry))
     {
@@ -280,7 +264,6 @@ public class SettingsTab : ITab
       ImGui.SetTooltip("Display chat message when a patron re-enters a venue after leaving");
     }
 
-    // Current Visitor
     var showChatAlertAlreadyHere = this.configuration.showChatAlertAlreadyHere;
     if (ImGui.Checkbox("Current Visitors on Entry", ref showChatAlertAlreadyHere))
     {
@@ -292,7 +275,6 @@ public class SettingsTab : ITab
       ImGui.SetTooltip("Display chat message for all current patrons when re-entering a house");
     }
 
-    // Leave Alerts
     var showChatAlertLeave = this.configuration.showChatAlertLeave;
     if (ImGui.Checkbox("Leave Alerts", ref showChatAlertLeave))
     {
@@ -304,13 +286,11 @@ public class SettingsTab : ITab
       ImGui.SetTooltip("Display chat message when a patron leaves");
     }
 
-    // Visual break: "Include Plugin Name" is a formatting/display preference,
-    // not an event toggle — separate it from the four event alerts above.
+    // "Include Plugin Name" is a display preference, not an event toggle — visually separated
     ImGui.Spacing();
     ImGui.Separator();
     ImGui.Spacing();
 
-    // Include plugin name in alerts
     var showPluginNameInChat = this.configuration.showPluginNameInChat;
     if (ImGui.Checkbox("Include Plugin Name", ref showPluginNameInChat))
     {
@@ -394,14 +374,10 @@ public class SettingsTab : ITab
 
   private void DrawPatronSoundAlerts()
   {
-    // Sound alerts are gated on showGuestsTab for the same reason as chat
-    // alerts — the tab owns the patron-event source that fires the doorbell.
-    // Grayed (not removed) when the tab is hidden so users can still see the
-    // section exists and understand why it's inactive.
+    // Gated on showGuestsTab like chat alerts; grayed not removed, so users see why it's inactive
     if (!this.configuration.showGuestsTab) ImGui.BeginDisabled();
 
     DrawSectionHeader("Patron Sound Alerts");
-    // Enable / Disable sound alerts
     var soundAlerts = this.configuration.soundAlerts;
     if (ImGui.Checkbox("Enabled##soundAlerts", ref soundAlerts))
     {
@@ -409,7 +385,6 @@ public class SettingsTab : ITab
       this.configuration.Save();
     }
     if (!this.configuration.soundAlerts) ImGui.BeginDisabled();
-    // Allow the user to select which doorbell sound they would like
     if (ImGui.BeginCombo("Doorbell sound", DoorbellSound.DoorbellSoundTypes[(int)configuration.doorbellType]))
     {
       var doorbells = (DOORBELL_TYPE[])Enum.GetValues(typeof(DOORBELL_TYPE));
@@ -452,9 +427,7 @@ public class SettingsTab : ITab
 
   private unsafe void DrawDebugInfo()
   {
-    // Support-surface content — only interesting when debugging a ticket, so
-    // collapsed by default. InputTextMultiline ReadOnly gives users a copy-
-    // paste target for bug reports instead of having to retype fields.
+    // Collapsed by default; ReadOnly field gives users a copy-paste target for bug reports
     if (!ImGui.CollapsingHeader("Debug Info"))
       return;
 
@@ -476,8 +449,7 @@ public class SettingsTab : ITab
         $"District: {district}\n" +
         $"PlaceName: {mapData.PlaceName.Value.Name.ExtractText()}";
     } catch (Exception ex) {
-      // Housing-manager reads fail outside houses. Swallow, but log once so
-      // support tickets can correlate a blank Debug block with a real cause.
+      // Housing-manager reads fail outside houses — log once for support ticket correlation
       Plugin.Log.Debug("Debug info read failed: {0}", ex.Message);
       body = $"(unavailable — not currently in a house)\n\n{ex.Message}";
     }
@@ -541,10 +513,7 @@ public class SettingsTab : ITab
     if (!this.configuration.syncToXivApp) ImGui.EndDisabled();
   }
 
-  // API Key input — masked by default, eye icon flips visibility. We trim on
-  // every keystroke to strip the whitespace/newlines that regularly sneak in
-  // from Discord copy-paste; those cause HttpClient.DefaultRequestHeaders.Add
-  // to throw a FormatException and the key was silently never applied.
+  // Trim on every keystroke — stray whitespace/newlines from Discord copy-paste otherwise throw in HttpClient.DefaultRequestHeaders.Add
   private void DrawApiKeyInput()
   {
     var apiKey = this.configuration.xivAppApiKey ?? "";
@@ -555,8 +524,7 @@ public class SettingsTab : ITab
       this.configuration.Save();
       ReconfigureXivAppClient();
     }
-    // Auto-fetch once the user finishes editing the key (blur), so a paste +
-    // click-elsewhere is enough — no separate Fetch Venues click required.
+    // Auto-fetch on blur so paste + click-elsewhere is enough, no separate Fetch Venues click required
     if (ImGui.IsItemDeactivatedAfterEdit() && !string.IsNullOrEmpty(this.configuration.xivAppApiKey))
     {
       _ = FetchXivAppVenuesAsync();
@@ -571,9 +539,7 @@ public class SettingsTab : ITab
       ImGui.SetTooltip(showApiKey ? "Hide API key" : "Show API key");
     }
 
-    // Inline validation feedback so users aren't left guessing why Fetch
-    // Venues does nothing when their key is malformed. Yellow (warn), not
-    // red (error) — the user is mid-entry, nothing has failed yet.
+    // Warn not error — user is mid-entry, nothing has failed yet
     if (!string.IsNullOrEmpty(this.configuration.xivAppApiKey) && !this.configuration.xivAppApiKey.StartsWith("vm_"))
     {
       ImGui.TextColored(StatusWarn, "Key must start with 'vm_' — generate one at xivvenuemanager.com/dashboard/api-keys.");
@@ -609,8 +575,7 @@ public class SettingsTab : ITab
     {
       ImGui.SetTooltip("Refresh the list of venues your API key has access to. The plugin fetches automatically when you finish editing the key or URL, so you only need this after changing permissions on the website.");
     }
-    // Reserve the row whether or not a status is active so appearing/
-    // disappearing text doesn't shove the rest of the section up and down.
+    // Reserve the row either way so appearing/disappearing text doesn't shove the section
     if (!string.IsNullOrEmpty(xivAppStatus))
     {
       ImGui.TextColored(xivAppStatusColor, xivAppStatus);
@@ -638,9 +603,7 @@ public class SettingsTab : ITab
         {
           this.configuration.selectedVenueId = venue.Id;
           this.configuration.Save();
-          // Track the active venue separately from Configuration so other
-          // code paths (service logging, role dropdowns) have a single
-          // source of truth that updates the instant the user switches.
+          // Separate from Configuration so other code paths get a single source of truth that updates instantly
           plugin.currentXivAppVenueId = venue.Id;
           _ = LoadVenueDataWithFeedbackAsync(venue.Id, venue.Name);
         }
@@ -650,16 +613,11 @@ public class SettingsTab : ITab
       ImGui.EndCombo();
     }
 
-    // Level-2 visibility: show what we actually fetched for the active
-    // venue. Truncated with hover-to-reveal — a venue with many roles or
-    // services wraps ugly otherwise, and users need to see Services for
-    // the Sales tab workflow (what they can log).
+    // Truncated with hover-to-reveal — a venue with many roles/services wraps ugly otherwise
     DrawTruncatedNameList("Roles", plugin.xivAppRoles.ConvertAll(r => r.Name));
     DrawTruncatedNameList("Services", plugin.availableServices.ConvertAll(s => s.Name));
   }
 
-  // Shared formatter for the "Roles: …" / "Services: …" status lines under
-  // the venue selector. Caps to maxShow and reveals the rest on hover.
   private static void DrawTruncatedNameList(string label, List<string> names, int maxShow = 3)
   {
     if (names.Count == 0)
@@ -684,11 +642,7 @@ public class SettingsTab : ITab
     }
   }
 
-  // Cascade wrapper: flips xivAppStatus so the user sees roles+services are
-  // being fetched instead of a silent pause after picking a venue. Writes
-  // terminal state ("✓ Loaded: …") regardless of per-fetch errors because
-  // the individual Fetch*Async helpers already log + swallow; partial data
-  // is still useful to surface.
+  // Writes terminal "✓ Loaded: …" status regardless of per-fetch errors — Fetch*Async helpers already log+swallow, partial data is still useful
   private async Task LoadVenueDataWithFeedbackAsync(string venueId, string venueName)
   {
     xivAppStatus = $"Loading roles + services + VIPs + bans for {venueName}…";
@@ -704,17 +658,14 @@ public class SettingsTab : ITab
     xivAppStatusColor = StatusOk;
   }
 
-  // Lazy-configure the XIV-App client from current Configuration. The client
-  // itself is always non-null (created at Plugin load), so callers don't need
-  // null checks — IsConfigured tells them whether a key+URL are set.
+  // Client is always non-null (created at Plugin load) — callers don't need null checks, just IsConfigured
   private void ReconfigureXivAppClient()
   {
     if (plugin.xivAppClient == null) return;
     if (string.IsNullOrEmpty(this.configuration.xivAppApiKey)) return;
     try
     {
-      // Fall back to the public host when the URL field is blank — users who
-      // leave the hint in place expect it to "just work".
+      // Fall back to the public host when blank — users leaving the hint in place expect it to "just work"
       var url = string.IsNullOrWhiteSpace(this.configuration.xivAppServerUrl)
         ? DefaultServerUrl
         : this.configuration.xivAppServerUrl;
@@ -737,8 +688,7 @@ public class SettingsTab : ITab
         xivAppStatusColor = StatusErr;
         return;
       }
-      // Self-heal: if a key was just pasted and ReconfigureXivAppClient hasn't
-      // fired yet (or silently failed), configure again before the request.
+      // Self-heal: key may have been pasted before ReconfigureXivAppClient fired
       if (!plugin.xivAppClient.IsConfigured && !string.IsNullOrEmpty(this.configuration.xivAppApiKey))
       {
         ReconfigureXivAppClient();
@@ -766,9 +716,7 @@ public class SettingsTab : ITab
       xivAppStatus = $"✓ Fetched {plugin.xivAppVenues.Count} venue(s)";
       xivAppStatusColor = StatusOk;
 
-      // Auto-select first venue if none selected, or re-hydrate roles/services
-      // for a previously-selected venue so "(none fetched yet)" doesn't stick
-      // on first load of an already-configured plugin.
+      // Auto-select first venue, or re-hydrate a previously-selected one so "(none fetched yet)" doesn't stick
       string? targetVenueId = null;
       string? targetVenueName = null;
       if (string.IsNullOrEmpty(this.configuration.selectedVenueId))
@@ -844,9 +792,6 @@ public class SettingsTab : ITab
       if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
 
       var roles = await plugin.xivAppClient.Venue.GetRolesAsync(venueId);
-      // Store the result so the Settings indicator (and any future role
-      // dropdown) can read it. Previously we logged-and-discarded — that
-      // was the "roles not updating" bug.
       plugin.xivAppRoles = roles;
       Plugin.Log.Information("Fetched {Count} roles for venue {VenueId}", roles.Count, venueId);
     } catch (Exception ex) {

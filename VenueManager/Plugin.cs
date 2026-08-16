@@ -34,7 +34,6 @@ namespace VenueManager
     [PluginService] public static IFramework Framework { get; private set; } = null!;
     [PluginService] public static IDataManager DataManager { get; private set; } = null!;
     [PluginService] public static ITextureProvider TextureProvider { get; private set; } = null!;
-    // Game Objects 
     [PluginService] public static IObjectTable Objects { get; private set; } = null!;
     [PluginService] public static IPlayerState PlayerState  { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
@@ -49,7 +48,6 @@ namespace VenueManager
     public Dictionary<long, GuestList> guestLists = new();
     public LifestreamIpc LifestreamIpc { get; private set; } = null!;
 
-    // Windows
     public WindowSystem WindowSystem = new("VenueManager");
     private MainWindow MainWindow { get; init; }
     private NotesWindow NotesWindow { get; init; }
@@ -58,26 +56,14 @@ namespace VenueManager
     private Stopwatch stopwatch = new();
     private DoorbellSound doorbell;
 
-    // Always running, independent of stopwatch above. Detects standing on a
-    // plot exterior when nothing has set userInHouse yet - OnTerritoryChanged
-    // fires on zone *load*, and walking from a ward's general area onto a
-    // specific plot's exterior boundary isn't a zone load, so entry via the
-    // exterior (unlike walking through a door) has no discrete event to
-    // hook. This is a low-frequency poll purely to catch that case.
+    // Exterior-entry poll — see ARCHITECTURE.md § Housing/location detection
     private Stopwatch entryPollStopwatch = Stopwatch.StartNew();
 
-    // Server Info Bar entry. Created once in ctor, text refreshed from the
-    // framework-update tick (throttled to ~2s — DTR is at-a-glance, no need
-    // to allocate a new SeString every frame). Disposed on unload via Remove().
+    // Server Info Bar entry — see ARCHITECTURE.md § Status bar (DTR)
     private IDtrBarEntry? dtrEntry;
     private long dtrLastUpdateMs = 0;
 
-    // Active shift cache. Populated by a background poll every 30s so the
-    // DTR can surface clock-in status even when the user never opens the
-    // Shifts tab. Null = no active shift, or we haven't polled yet / the
-    // API call failed. ShiftsTab still polls independently for its own UI
-    // — the two polls aren't coordinated, but 30s is cheap and the caches
-    // converge within a tick of each other.
+    // Active shift cache, populated by background poll — see ARCHITECTURE.md § Shift tracking
     public volatile ShiftDto? activeShift = null;
     private long lastShiftPollMs = 0;
     private volatile bool shiftPollInFlight = false;
@@ -85,15 +71,10 @@ namespace VenueManager
     private volatile bool vipBannedPollInFlight = false;
     private volatile string? _shiftReminderShiftId = null;
     private long _shiftReminderLastMs = 0;
-    // Mutex for all clock-in/clock-out operations regardless of which path
-    // triggers them (chat command vs UI button). WaitAsync(0) = non-blocking
-    // try-acquire so neither path ever blocks the caller's thread.
+    // Non-blocking try-acquire mutex shared by chat-command and UI clock actions
     public readonly SemaphoreSlim clockSem = new SemaphoreSlim(1, 1);
 
-    // XIV-App API Client. Public so UI tabs (SettingsTab, SalesTab, ...)
-    // can access it directly — the plugin has no cross-assembly boundary
-    // concerns, and every tab that needs to hit the server needs the
-    // same client instance.
+    // Public so UI tabs can access the same client instance directly
     public XIVAppApiClient? xivAppClient;
     public List<XIVAppVenue> xivAppVenues = new();
     public List<Role> xivAppRoles = new();
@@ -103,22 +84,14 @@ namespace VenueManager
     public List<BannedPatron> xivAppBannedPatrons = new();
     public string? currentXivAppVenueId;
 
-    // Event-presence cache used to gate patron-visit sync when the user
-    // has opted into "sync only during events". 60s TTL per venue — see
-    // EventPresenceCache for the reasoning.
+    // Gates patron-visit sync for "sync only during events" — see ARCHITECTURE.md § Patron sync & chat alerts
     public EventPresenceCache eventPresence = new();
 
-    // Session-scoped sales counters — reset on plugin reload. Drive the
-    // dashboard strip's session tally. Not persisted via Configuration
-    // because "session" = plugin lifetime, not calendar day. Incremented
-    // in SalesTab.LogSaleAsync success branch and by any future slash
-    // subcommand paths (e.g. /xvm sale!).
+    // Session-scoped sales tally (plugin lifetime, not persisted)
     public int SessionSalesTotal = 0;
     public int SessionSalesCount = 0;
 
-    // Build a deep-link URL into the XIV-App website for the currently
-    // selected venue. Returns null if no venue is selected or the slug
-    // is missing (pre-Foundation venue data).
+    // Deep-link URL into the XIV-App website for the selected venue
     public string? BuildVenueUrl(string? subpath = null)
     {
       if (string.IsNullOrEmpty(currentXivAppVenueId)) return null;
@@ -131,11 +104,7 @@ namespace VenueManager
       return baseUrl + path;
     }
 
-    // Startup hydration of XIV-App data so the user doesn't have to click
-    // Fetch Venues every game launch. Called fire-and-forget from OnInit
-    // after the API client has been Configure()'d. All failures are
-    // logged-and-swallowed: empty lists are the safe fallback and the
-    // manual Settings tab button remains as a retry path.
+    // Startup hydration so the user doesn't need to click Fetch Venues every launch — see ARCHITECTURE.md § Startup/configuration
     public async Task AutoLoadXivAppDataAsync()
     {
       if (xivAppClient == null || !xivAppClient.IsConfigured) return;
@@ -145,9 +114,7 @@ namespace VenueManager
         Log.Information("Auto-loaded {Count} venue(s) on startup", xivAppVenues.Count);
         if (xivAppVenues.Count == 0) return;
 
-        // Pick the previously-selected venue if it still exists, otherwise
-        // the first one. Mirrors the manual button's selection logic so
-        // startup state matches "user-just-clicked-Fetch" state.
+        // Mirrors the manual Fetch button's selection logic
         var preferred = xivAppVenues.FirstOrDefault(v => v.Id == Configuration.selectedVenueId);
         var target = preferred ?? xivAppVenues[0];
         currentXivAppVenueId = target.Id;
@@ -180,25 +147,14 @@ namespace VenueManager
       }
     }
 
-    // Cached version string pulled from the loaded assembly. Plugin.cs,
-    // XIVVenueManagerSync.json and repo.json are kept in lockstep by the
-    // build + ship ritual, so reading from the running assembly means the
-    // dashboard strip auto-follows whatever version the user installed.
+    // Read from the running assembly so the dashboard strip always matches the installed version
     public string PluginVersion { get; } =
       typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "?";
 
     // True for the first loop that a player enters a house
     private bool justEnteredHouse = false;
 
-    // Tracks how long HouseIdentity.Current() has continuously read null
-    // while userInHouse - debounces the leftHouse() call in
-    // OnFrameworkUpdate against a single transient misread. Early-return
-    // paths there don't restart `stopwatch`, so once its 1000ms gate has
-    // been crossed once, those paths get hit every frame (not once a
-    // second) until a full pass succeeds - a one-frame hiccup right after
-    // entering would otherwise trip leftHouse() almost immediately, with
-    // nothing left to recover it since only an actual zone change restarts
-    // tracking.
+    // Debounces leftHouse() against a single transient misread — see ARCHITECTURE.md § Housing/location detection
     private long? notAtPlotSinceMs = null;
 
     private bool running = false;
@@ -209,28 +165,20 @@ namespace VenueManager
       this.venueList = new VenueList();
       this.venueList.load();
 
-      // Default guest list
       this.guestLists.Add(0, new GuestList());
       this.guestLists[0].load();
 
       this.Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
       this.Configuration.Initialize(PluginInterface);
 
-      // XIV-App API Client is always instantiated so the Settings tab can
-      // lazy-configure it the moment the user pastes a key. Previously this
-      // was gated on the key already being present, which made first-time
-      // setup require a game restart before Fetch Venues would work.
+      // Always instantiated so the Settings tab can lazy-configure it on paste — see ARCHITECTURE.md § Startup/configuration
       xivAppClient = new XIVAppApiClient();
       if (!string.IsNullOrEmpty(Configuration.xivAppApiKey))
       {
           xivAppClient.Configure(Configuration.xivAppApiKey, Configuration.xivAppServerUrl);
           Log.Information("XIV-App API Client configured with server: {0}", Configuration.xivAppServerUrl);
 
-          // Auto-load venues + roles + services on startup so the user
-          // doesn't have to click Fetch Venues every time. Fire-and-forget:
-          // a server outage at launch must not block plugin init. The UI
-          // Settings tab still renders cleanly with empty lists in the
-          // worst case, and the manual button remains as a retry path.
+          // Fire-and-forget: a server outage at launch must not block plugin init
           _ = AutoLoadXivAppDataAsync();
       }
 
@@ -243,7 +191,6 @@ namespace VenueManager
       WindowSystem.AddWindow(NotesWindow);
       WindowSystem.AddWindow(ChangelogWindow);
 
-      // Show changelog automatically when the plugin updates.
       if (Configuration.LastSeenVersion != PluginVersion)
       {
         Configuration.LastSeenVersion = PluginVersion;
@@ -257,10 +204,7 @@ namespace VenueManager
       var SnoozeHandlerAlias = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Alias for /xvenue snooze" };
       CommandManager.AddHandler(CommandName + " snooze", SnoozeHandler);
       CommandManager.AddHandler(CommandNameAlias + " snooze", SnoozeHandlerAlias);
-      // Sale subcommand sugar. Dalamud dispatches on the parent command
-      // (OnCommand receives args="sale 500 Ehno") — these AddHandler
-      // calls exist purely to surface each subcommand in /xlhelp. The
-      // actual routing lives in OnCommand's args parser.
+      // These AddHandler calls exist purely to surface subcommands in /xlhelp — routing lives in OnCommand's args parser
       var SaleHelp    = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab. Usage: /xvm sale [amount] [customer]" };
       var SaleBangHelp = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Log a sale without opening UI. Usage: /xvm sale! <amount> [customer]" };
       var TipHelp     = new CommandInfo(OnCommand) { ShowInHelp = true, HelpMessage = "Open Sales tab, Tip selected. Usage: /xvm tip [amount] [customer]" };
@@ -280,9 +224,7 @@ namespace VenueManager
       CommandManager.AddHandler(CommandNameAlias + " start",   StartHelp);
       CommandManager.AddHandler(CommandNameAlias + " end",     EndHelp);
 
-      // DTR bar entry. Always created — visibility is driven by the
-      // display-mode config, not by Get/Remove churn. Clicking opens the
-      // main window, matching what users expect from a plugin tray.
+      // Always created; visibility driven by display-mode config, not Get/Remove churn
       try
       {
         dtrEntry = DtrBar.Get("XIV Venue Manager");
@@ -298,23 +240,17 @@ namespace VenueManager
 
       PluginInterface.UiBuilder.Draw += DrawUI;
 
-      // Bind territory changed listener to client 
       ClientState.TerritoryChanged += OnTerritoryChanged;
       Framework.Update += OnFrameworkUpdate;
       ClientState.Logout += OnLogout;
 
-      // Load Sound 
       doorbell = new DoorbellSound(this, Configuration.doorbellType);
       doorbell.load();
 
-      // Run territory change one time on boot to register current location 
+      // Register current location on boot
       OnTerritoryChanged(ClientState.TerritoryType);
 
-      // This adds a button to the plugin installer entry of this plugin which allows
-      // to toggle the display status of the configuration ui
       PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUI;
-
-      // Adds another button that is doing the same but for the main ui of the plugin
       PluginInterface.UiBuilder.OpenMainUi += ToggleMainUI;
     }
 
@@ -327,12 +263,9 @@ namespace VenueManager
       LifestreamIpc?.Dispose();
       xivAppClient?.Dispose();
 
-      // Remove framework listener on close
       Framework.Update -= OnFrameworkUpdate;
-      // Remove territory change listener
       ClientState.TerritoryChanged -= OnTerritoryChanged;
 
-      // Dispose our sound file
       doorbell.disposeFile();
 
       // Remove DTR entry so the strip doesn't keep a stale slot after unload.
@@ -386,18 +319,7 @@ namespace VenueManager
         return;
       }
 
-      // Sale subcommand family. Split on whitespace, first token is the
-      // verb, second token is the amount (integer), the rest is a free
-      // text customer name (may contain spaces).
-      //
-      // /xvm sale                    → open Sales tab, no prefill
-      // /xvm sale 500                → open Sales tab, amount=500
-      // /xvm sale 500 Ehno Smith     → open Sales tab, amount=500, customer="Ehno Smith"
-      // /xvm sale! 500 Ehno          → log immediately, no UI shown, chat toast on result
-      // /xvm tip 500 Ehno            → open Sales tab, Tip selected, amount=500, customer="Ehno"
-      // /xvm tip! 500 Ehno           → log a tip immediately, no UI shown, chat toast on result
-      // /xvm target                  → open Sales tab with current target prefilled
-      // /xvm target 500              → open Sales tab with current target + amount
+      // Sale subcommand family — see ARCHITECTURE.md § Slash commands
       if (args.StartsWith("sale") || args.StartsWith("tip") || args.StartsWith("target"))
       {
         var parts = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -436,10 +358,7 @@ namespace VenueManager
 
         if (verb == "target")
         {
-          // For /xvm target the "customer" override is the game target,
-          // not an args field. If the player has no target we fall
-          // through with null and let the Sales tab's own Use Target
-          // flow handle it next frame.
+          // Customer override is the game target, not an args field; falls through to null if no target
           var t = TargetManager.Target;
           var targetName = t?.Name.TextValue;
           MainWindow.OpenTab("Sales");
@@ -478,7 +397,6 @@ namespace VenueManager
           return;
         }
 
-        // Plain "sale" — open Sales tab with whatever prefill is available.
         MainWindow.OpenTab("Sales");
         MainWindow.PrefillSale(parsedAmount, customerFromArgs);
         MainWindow.IsOpen = true;
@@ -530,15 +448,10 @@ namespace VenueManager
         return;
       }
 
-      // in response to the slash command, just display our main ui
       MainWindow.IsOpen = true;
     }
 
-    // Fire-and-forget silent sale log used by `/xvm sale!`. Bypasses the
-    // Sales tab form state entirely — writes straight through to the
-    // XIV-App API and posts a chat toast on result. Success increments
-    // the dashboard session tally so the strip readout stays consistent
-    // regardless of which code path logged the sale.
+    // Used by `/xvm sale!` — see ARCHITECTURE.md § Slash commands
     public async Task LogSaleSilentAsync(int amount, string? customer)
     {
       string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
@@ -559,10 +472,10 @@ namespace VenueManager
         string? trimmedName = string.IsNullOrWhiteSpace(customer) ? null : customer!.Trim();
         var result = await xivAppClient.Patron.LogTransactionAsync(
           currentXivAppVenueId,
-          null,          // no service id from slash path
+          null,
           (decimal)amount,
           trimmedName,
-          null           // no notes from slash path
+          null
         );
 
         if (result.Success)
@@ -585,10 +498,7 @@ namespace VenueManager
       }
     }
 
-    // Fire-and-forget tip log used by `/xvm tip!`. Same shape as
-    // LogSaleSilentAsync, just tagged type="TIP" so the server (and the
-    // website's revenue/tips-pool breakdown) counts it separately from a
-    // sale.
+    // Used by `/xvm tip!` — same shape as LogSaleSilentAsync, tagged type="TIP"
     public async Task LogTipSilentAsync(int amount, string? customer)
     {
       string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
@@ -609,10 +519,10 @@ namespace VenueManager
         string? trimmedName = string.IsNullOrWhiteSpace(customer) ? null : customer!.Trim();
         var result = await xivAppClient.Patron.LogTransactionAsync(
           currentXivAppVenueId,
-          null,          // no service id from slash path
+          null,
           (decimal)amount,
           trimmedName,
-          null,          // no notes from slash path
+          null,
           "TIP"
         );
 
@@ -636,9 +546,7 @@ namespace VenueManager
       }
     }
 
-    // Fire-and-forget ban used by `/xvm ban!`. Bans the player's current
-    // target with the given reason. Works even for a character with no
-    // prior visit history — the server finds-or-creates the Patron row.
+    // Used by `/xvm ban!` — server finds-or-creates the Patron row
     public async Task BanPatronSilentAsync(string characterName, string world, string reason)
     {
       string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
@@ -674,8 +582,7 @@ namespace VenueManager
       }
     }
 
-    // Fire-and-forget clock-in used by `/xvm start`. Finds the first
-    // SCHEDULED shift within its clock-in window and clocks in.
+    // Used by `/xvm start` — clocks into the first SCHEDULED shift
     public async Task ShiftClockInSilentAsync()
     {
       string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
@@ -727,8 +634,7 @@ namespace VenueManager
       }
     }
 
-    // Fire-and-forget clock-out used by `/xvm end`. Finds the first
-    // ACTIVE shift and clocks out, reporting hours worked.
+    // Used by `/xvm end` — clocks out of the first ACTIVE shift
     public async Task ShiftClockOutSilentAsync()
     {
       string prefix = this.Configuration.showPluginNameInChat ? $"[{Name}] " : "";
@@ -783,10 +689,7 @@ namespace VenueManager
       }
     }
 
-    // Expires the DTR shift-poll cooldown so the next framework tick
-    // triggers a fresh GetShiftsResponseAsync. Called after any successful clock
-    // action so the DTR label reflects the new state within one frame
-    // rather than waiting up to 30s for the normal interval to expire.
+    // Forces a fresh shift poll next tick so the DTR label updates within one frame of a clock action
     public void InvalidateShiftPollCache() => lastShiftPollMs = 0;
 
     private void DrawUI()
@@ -802,9 +705,7 @@ namespace VenueManager
 
     private void OnLogout(int type, int code)
     {
-      // Erase territory state 
       pluginState.territory = 0;
-
       leftHouse();
     }
 
@@ -814,13 +715,9 @@ namespace VenueManager
 
     private unsafe void OnTerritoryChanged(uint territory)
     {
-      // Save current user territory
       pluginState.territory = (ushort)territory;
 
-      // "In house" here means "at the venue" - interior instance OR
-      // standing outside on the plot exterior. Both feed the same
-      // tracking/logging path so a patron never gets double-counted for
-      // walking through the door.
+      // "In house" = interior instance OR plot exterior — see ARCHITECTURE.md § Housing/location detection
       bool inHouse = false;
       try
       {
@@ -831,14 +728,12 @@ namespace VenueManager
         Log.Warning("Could not get housing state on territory change. " + ex.Message);
       }
 
-      // Player has entered a house (or its plot exterior)
       if (inHouse)
       {
         justEnteredHouse = true;
         pluginState.userInHouse = true;
         startTimers();
       }
-      // Player has left a house 
       else if (pluginState.userInHouse)
       {
         leftHouse();
@@ -859,21 +754,14 @@ namespace VenueManager
     private void leftHouse()
     {
       pluginState.userInHouse = false;
-      pluginState.currentHouse = new Venue(); // Erase venue when leaving
+      pluginState.currentHouse = new Venue();
       stopwatch.Stop();
-      // Unsnooze if leaving a house when snoozed
       if (pluginState.snoozed) OnSnooze();
-      // Refresh DTR immediately so "Outside" replaces the venue name without
-      // waiting for the 2s throttle.
+      // Force-refresh so "Outside" replaces the venue name without waiting for the 2s throttle
       UpdateDtrBar(force: true);
     }
 
-    // Re-keys a house saved under the legacy interior-only houseId
-    // (GetCurrentIndoorHouseId()) to the new composite id (works inside and
-    // outside). Runs at most once per house, the first time it's visited
-    // after this shipped - venueList, the xiv-app venue link, and the
-    // on-disk guest-list file all move together so patron history isn't
-    // orphaned under a dead key.
+    // Re-keys a house from the legacy interior-only id to the composite id — see ARCHITECTURE.md § Housing/location detection
     private bool MigrateLegacyHouseId(long legacyHouseId, long newHouseId)
     {
       if (!venueList.venues.TryGetValue(legacyHouseId, out var venue)) return false;
@@ -911,11 +799,7 @@ namespace VenueManager
       return true;
     }
 
-    // Re-keys a saved venue found by matching its physical location
-    // (world/ward/plot/room/type) rather than an exact id match. Covers the
-    // case MigrateLegacyHouseId() can't: a venue saved under the legacy
-    // interior-only id, first re-visited via the plot exterior, where the
-    // legacy id isn't computable at all (see HouseIdentity.cs).
+    // Re-keys by physical location match — covers the exterior-first case MigrateLegacyHouseId() can't
     private bool MigrateVenueByLocation(long newHouseId, uint worldId, int ward, int plot, int room, ushort type)
     {
       var match = venueList.venues.Values.FirstOrDefault(v =>
@@ -926,11 +810,7 @@ namespace VenueManager
       return MigrateLegacyHouseId(match.houseId, newHouseId);
     }
 
-    // Refreshes the Server Info Bar entry text. Called every framework tick,
-    // but the body throttles to ~2s so we don't re-allocate an SeString 60×/s
-    // for a strip the player only glances at. Call with force=true to push
-    // an immediate update on state transitions (mode change, entering/leaving
-    // a house) so the UI feels responsive instead of lagged.
+    // Throttled to ~2s per framework tick — force=true for immediate updates on state transitions
     public void UpdateDtrBar(bool force = false)
     {
       if (dtrEntry == null) return;
@@ -939,8 +819,6 @@ namespace VenueManager
       if (!dtrEntry.Shown) return;
 
       var nowMs = Environment.TickCount64;
-      // Kick the shift poller on the same tick as the DTR refresh. Cheap —
-      // fires at most once every 30s and skips itself if a call is in flight.
       if (mode == DtrDisplayMode.ShiftStatus || mode == DtrDisplayMode.Combined)
         PollActiveShiftAsync();
 
@@ -984,10 +862,7 @@ namespace VenueManager
       dtrEntry.Text = text;
     }
 
-    // Resolves the current venue's display name: xiv-app linked name first
-    // (nice branding like "Rose Garden"), falling back to the raw
-    // ward/plot tag (functional but dry). Returns "Outside" when the player
-    // is not in a house.
+    // xiv-app linked name first, falls back to raw ward/plot tag; "Outside" when not in a house
     private string BuildVenueLabel(bool prefix = true)
     {
       var p = prefix ? "VM: " : "";
@@ -1006,13 +881,7 @@ namespace VenueManager
       return p + $"W{h.ward} P{h.plot}";
     }
 
-    // Renders the current shift state as DTR text. Handles three shapes:
-    //   ACTIVE       → "On shift 1h23m" (elapsed since actualStart)
-    //   SCHEDULED    → "Shift in 45m" (time until scheduledStart), only when
-    //                  within the next 2 hours — otherwise not worth surfacing
-    //   none of above → "Off shift" (prefix mode) or "" (compact mode)
-    // `compact` mode is used by Combined so we can drop empty/off-shift
-    // entries from the joined string instead of padding them in.
+    // ACTIVE → "On shift 1h23m", SCHEDULED (within 2h) → "Shift in 45m", else "Off shift"/"" (compact)
     private string BuildShiftLabel(bool prefix = true, bool compact = false)
     {
       var p = prefix ? "VM: " : "";
@@ -1049,10 +918,7 @@ namespace VenueManager
       return $"{(int)t.TotalSeconds}s";
     }
 
-    // Fires a chat reminder when an ACTIVE shift runs past its scheduled end.
-    // Prints once at end-of-shift, then repeats every 15 min in case the
-    // first message was missed. State is per shift ID and clears automatically
-    // when the shift is no longer ACTIVE (clocked out or polling returns null).
+    // Reminds when an ACTIVE shift runs past scheduled end; repeats every 15 min — see ARCHITECTURE.md § Shift tracking
     private void CheckShiftEndReminder(ShiftDto? pick)
     {
       if (pick == null || pick.Status != "ACTIVE" || string.IsNullOrEmpty(pick.ScheduledEnd))
@@ -1068,7 +934,6 @@ namespace VenueManager
       var overBy = DateTime.UtcNow - endDt.ToUniversalTime();
       if (overBy.TotalSeconds <= 0)
       {
-        // Shift hasn't ended yet — clear any stale reminder state for this shift
         if (_shiftReminderShiftId == pick.Id) { _shiftReminderShiftId = null; _shiftReminderLastMs = 0; }
         return;
       }
@@ -1087,18 +952,7 @@ namespace VenueManager
       _shiftReminderLastMs = nowMs;
     }
 
-    // Lazy shift poller. Runs at most once per 30s, skips if a previous
-    // call is still in flight, no-ops when the API client or venue isn't
-    // configured. Picks "the most relevant" shift for DTR purposes:
-    //   1. any ACTIVE shift wins (user is clocked in right now)
-    //   2. otherwise the earliest SCHEDULED shift starting in the future
-    //   3. otherwise null (clears the cache)
-    // Errors are swallowed silently — the DTR fallback is "Off shift"
-    // which is a truthful display when we can't reach the server.
-    // VIP/banned patron lists were previously only loaded on plugin startup
-    // and the manual "Fetch Venues" button, so marking someone VIP/banned on
-    // the dashboard never reached the plugin without a manual resync. Polls
-    // every 30s instead, matching PollActiveShiftAsync's pattern.
+    // Polls every 30s so VIP/banned status set on the dashboard reaches the plugin without a manual resync
     private void PollVipBannedPatronsAsync()
     {
       if (vipBannedPollInFlight) return;
@@ -1129,6 +983,7 @@ namespace VenueManager
       });
     }
 
+    // Picks ACTIVE shift, else earliest future SCHEDULED, else null; errors swallowed ("Off shift" is a truthful fallback)
     private void PollActiveShiftAsync()
     {
       if (shiftPollInFlight) return;
@@ -1187,11 +1042,7 @@ namespace VenueManager
         UpdateDtrBar();
         PollVipBannedPatronsAsync();
 
-        // Poll for standing on a plot exterior when nothing has flagged us
-        // as in-house yet. Runs everywhere in the game world, not just near
-        // housing - HousingManager calls are safe to make unconditionally
-        // (same assumption Aetherphone's own tracker relies on, calling its
-        // equivalent detector every tick with no location precondition).
+        // Exterior-entry poll — see ARCHITECTURE.md § Housing/location detection
         if (!pluginState.userInHouse && entryPollStopwatch.ElapsedMilliseconds > 1000)
         {
           entryPollStopwatch.Restart();
@@ -1218,21 +1069,13 @@ namespace VenueManager
         // Every second we are in a house. Process players and see what has changed
         if (pluginState.userInHouse && stopwatch.ElapsedMilliseconds > 1000)
         {
-          // Fetch updated house information
           if (pluginState.userInHouse)
           {
             try
             {
               var housingManager = HousingManager.Instance();
 
-              // Composite ID works inside or outside on the plot exterior -
-              // need the world first since it's an input to the formula
-              // (native GetCurrentIndoorHouseId() didn't need it passed in).
-              // Bail and retry next tick rather than falling back to a stale/
-              // zero world id - Objects[0] resolving is already known to be
-              // flaky the instant after a territory change, and a wrong world
-              // id here would corrupt the computed house identity instead of
-              // just failing loudly like the surrounding catch already does.
+              // Bail and retry next tick rather than risk a stale/zero world id corrupting the computed house identity
               if (Objects[0] is not IPlayerCharacter selfCharacter)
               {
                 running = false;
@@ -1243,13 +1086,7 @@ namespace VenueManager
               var computedHouseId = HouseIdentity.Current(housingManager, currentWorldId);
               if (computedHouseId == null)
               {
-                // Walked off the plot exterior without a territory change
-                // (still the same ward zone) - OnTerritoryChanged never
-                // fires for this, unlike leaving an interior instance, so
-                // this per-tick check is the only place that notices.
-                // Debounced (see notAtPlotSinceMs) so a single transient
-                // misread right after entering doesn't kill tracking with
-                // no way to recover it.
+                // Walked off plot exterior without a territory change; debounced via notAtPlotSinceMs
                 notAtPlotSinceMs ??= Environment.TickCount64;
                 if (pluginState.userInHouse && Environment.TickCount64 - notAtPlotSinceMs.Value > 2000)
                 {
@@ -1261,22 +1098,12 @@ namespace VenueManager
               }
               notAtPlotSinceMs = null;
 
-              // One-time self-heal: a house saved before exterior tracking
-              // shipped may still be keyed under the legacy
-              // GetCurrentIndoorHouseId() value. Only worth checking when the
-              // composite ID isn't already a known venue. Deliberately NOT
-              // nested inside the "houseId just changed" branch below - if
-              // the player walked the exterior first, pluginState.currentHouse.houseId
-              // already equals computedHouseId (same physical plot, same
-              // formula) by the time they step inside, so no "change" is
-              // ever detected and a transition-gated migration would never run.
+              // One-time legacy-houseId self-heal — see ARCHITECTURE.md § Housing/location detection
               if (!venueList.venues.ContainsKey(computedHouseId.Value))
               {
                 bool migrated = false;
 
-                // The legacy interior id genuinely isn't available while
-                // outside (see HouseIdentity.cs), so this path only fires
-                // once the player has stepped inside at least once.
+                // Legacy interior id isn't available while outside — only fires after stepping inside once
                 if (housingManager->IsInside())
                 {
                   var legacyHouseId = (long)housingManager->GetCurrentIndoorHouseId().Id;
@@ -1284,11 +1111,7 @@ namespace VenueManager
                     migrated = MigrateLegacyHouseId(legacyHouseId, computedHouseId.Value);
                 }
 
-                // Fallback for the exterior-only case: match the saved venue
-                // by physical location instead of the unavailable legacy id.
-                // Works inside or outside, so a legacy-keyed venue heals on
-                // the very first exterior visit instead of requiring an
-                // interior visit first.
+                // Fallback for the exterior-only case: match by physical location instead
                 if (!migrated)
                 {
                   var plotForMatch = housingManager->GetCurrentPlot() + 1;
@@ -1300,14 +1123,11 @@ namespace VenueManager
 
                 if (migrated)
                 {
-                  // Migration just made this id known, but nothing below
-                  // will notice unless the block treats this as a fresh
-                  // transition - force that by clearing the stored id.
+                  // Force a fresh-transition detection below
                   pluginState.currentHouse.houseId = 0;
                 }
               }
 
-              // If the user has transitioned into a new house/plot. Store that house information.
               if (pluginState.currentHouse.houseId != computedHouseId.Value)
               {
                 pluginState.currentHouse.houseId = computedHouseId.Value;
@@ -1318,25 +1138,16 @@ namespace VenueManager
                 pluginState.currentHouse.district = TerritoryUtils.getDistrict(pluginState.currentHouse.type);
                 pluginState.currentHouse.worldId = currentWorldId;
 
-                // Load current guest list from disk if player has entered a saved venue
                 if (venueList.venues.ContainsKey(pluginState.currentHouse.houseId))
                 {
                   var venue = venueList.venues[pluginState.currentHouse.houseId];
                   GuestList venueGuestList = new GuestList(venue.houseId, venue);
                   venueGuestList.load();
-                  // Upsert, not Add - re-entering a house already visited
-                  // this session (leave then come back, now trivial via the
-                  // exterior) would otherwise throw on a duplicate key here,
-                  // which the surrounding catch swallowed silently, cutting
-                  // off the name-resolution code just below before it ran.
+                  // Upsert, not Add — re-entering a house visited earlier this session would otherwise throw
                   guestLists[venue.houseId] = venueGuestList;
                 }
 
-                // Resolve display name for the main window header — never
-                // set until now, so the header always showed "(no venue)"
-                // regardless of whether the house was actually registered.
-                // Same precedence as BuildVenueLabel(): xiv-app linked name
-                // first (nicer branding), then the local saved venue name.
+                // Same precedence as BuildVenueLabel(): xiv-app linked name first, then local saved name
                 pluginState.currentHouse.name = "";
                 if (Configuration.houseToXivAppVenue.TryGetValue(pluginState.currentHouse.houseId, out var linkedVenueId))
                 {
@@ -1354,7 +1165,7 @@ namespace VenueManager
             }
             catch
             {
-              // Typically fails first time after entering a house 
+              // Typically fails first time after entering a house
               running = false;
               return;
             }
@@ -1369,35 +1180,27 @@ namespace VenueManager
           bool playerArrived = false;
           int playerCount = 0;
 
-          // Object to track seen players 
           Dictionary<string, bool> seenPlayers = new();
           foreach (var o in Objects)
           {
-            // Reject non player objects 
             if (o is not IPlayerCharacter pc) continue;
             var player = Player.fromCharacter(pc);
 
-            // Skip player characters that do not have a name. 
-            // Portrait and Adventure plates show up with this. 
+            // Portrait/Adventure plates show up with an empty name
             if (pc.Name.TextValue.Length == 0) continue;
-            // Im not sure what this means, but it seems that 4 is for players
+            // SubKind 4 = players
             if (o.SubKind != 4) continue;
             playerCount++;
 
-            // Add player to seen map 
             if (seenPlayers.ContainsKey(player.Name))
               seenPlayers[player.Name] = true;
             else
               seenPlayers.Add(player.Name, true);
 
-            // Is the new player the current user 
-            
             var isSelf = PlayerState.CharacterName == player.Name;
 
-            // Store Player name 
             if (PlayerState.CharacterName != null && PlayerState.CharacterName.Length > 0) pluginState.playerName = PlayerState.CharacterName ?? "";
 
-            // New Player has entered the house
             if (!getCurrentGuestList().guests.ContainsKey(player.Name))
             {
               guestListUpdated = true;
@@ -1406,7 +1209,6 @@ namespace VenueManager
               showGuestEnterChatAlert(getCurrentGuestList().guests[player.Name], isSelf);
               TryLogPatronVisit(player.Name, player.WorldName, "enter");
             }
-            // Mark the player as re-entering the venue
             else if (!getCurrentGuestList().guests[player.Name].inHouse)
             {
               guestListUpdated = true;
@@ -1417,40 +1219,29 @@ namespace VenueManager
               showGuestEnterChatAlert(getCurrentGuestList().guests[player.Name], isSelf);
               TryLogPatronVisit(player.Name, player.WorldName, "enter");
             }
-            // Current user just entered house
             else if (justEnteredHouse)
             {
               getCurrentGuestList().guests[player.Name].timeCursor = DateTime.Now;
-              // setting is enabled to notify them on existing users. 
-              if (this.Configuration.showChatAlertAlreadyHere) 
+              if (this.Configuration.showChatAlertAlreadyHere)
                 showGuestEnterChatAlert(getCurrentGuestList().guests[player.Name], isSelf);
             }
-            
-            // Re-mark as friend incase status changed 
+
             getCurrentGuestList().guests[player.Name].isFriend = pc.StatusFlags.HasFlag(StatusFlags.Friend);
 
-            // Mark last seen 
             getCurrentGuestList().guests[player.Name].lastSeen = DateTime.Now;
 
-            // Mark last time current player enter house 
             if (justEnteredHouse && isSelf)
             {
               getCurrentGuestList().guests[player.Name].latestEntry = DateTime.Now;
             }
           }
 
-          // Check for guests that have left the house
-          // On the first pass after loading a guest list from disk, guests
-          // restored as inHouse=true who aren't actually here anymore left
-          // during a prior session - reconcile local state silently instead
-          // of syncing a "leave" with no matching "enter" in this session.
+          // First pass after loading from disk: reconcile stale inHouse=true silently, no "leave" sync
           bool skipLeaveSync = getCurrentGuestList().justLoaded;
           foreach (var guest in getCurrentGuestList().guests)
           {
-            // Guest is marked as in the house
             if (guest.Value.inHouse)
             {
-              // Guest was not seen this loop
               if (!seenPlayers.ContainsKey(guest.Value.Name))
               {
                 guest.Value.onLeaveVenue();
@@ -1461,7 +1252,6 @@ namespace VenueManager
                   TryLogPatronVisit(guest.Value.Name, guest.Value.WorldName, "leave");
                 }
               }
-              // Guest was seen this loop
               else
               {
                 guest.Value.onAccumulateTime();
@@ -1471,16 +1261,13 @@ namespace VenueManager
           }
           getCurrentGuestList().justLoaded = false;
 
-          // Only play doorbell sound once if there were one or more new people
           if (Configuration.soundAlerts && playerArrived && !pluginState.snoozed)
           {
             doorbell.play();
           }
 
-          // Save number of players seen this update 
           pluginState.playersInHouse = playerCount;
 
-          // Save config if we saw new players
           if (guestListUpdated) getCurrentGuestList().save();
 
           justEnteredHouse = false;
@@ -1530,12 +1317,9 @@ namespace VenueManager
       var messageBuilder = new SeStringBuilder();
       var knownVenue = venueList.venues.ContainsKey(pluginState.currentHouse.houseId);
 
-      // Sync/chat alerts are only meaningful at a venue you've registered -
-      // otherwise every house you walk into (yours or not) spams the same
-      // "has entered/left" line with no venue name to attach it to.
+      // Only meaningful at a registered venue — otherwise every house spams the same line with no venue name
       if (!knownVenue) return;
 
-      // Show text alert for self
       if (isSelf)
       {
         var selfVenue = venueList.venues[pluginState.currentHouse.houseId];
@@ -1545,10 +1329,7 @@ namespace VenueManager
         return;
       }
 
-      // Auto-greeter fires independently of chat alert settings and snooze —
-      // the greeter may want tells without the visual chat noise.
-      // Skips already-here players when the greeter re-enters the venue.
-      // Only fires at registered venues while a shift is active.
+      // Fires independently of chat alert settings and snooze; only while a shift is active
       var shift = activeShift;
       if (!justEnteredHouse && shift != null && shift.Status == "ACTIVE")
       {
@@ -1558,23 +1339,17 @@ namespace VenueManager
           SendGameChat($"/tell {player.Name}@{player.WorldName} {Configuration.reentryGreeterMessage}");
       }
 
-      // Don't show alerts if snoozed
       if (pluginState.snoozed) return;
-      // Don't show if chat alerts disabled
       if (!Configuration.showChatAlerts) return;
 
-      // Alert type is already here 
       bool isAlreadyHere = justEnteredHouse && this.Configuration.showChatAlertAlreadyHere;
 
-      // Return if not showing already here alerts
       if (justEnteredHouse && !this.Configuration.showChatAlertAlreadyHere) return;
 
-      // Return if reentry alerts are disabled. (We need to ignore this check for already here alerts)
+      // isAlreadyHere bypasses these two checks
       if (player.entryCount > 1 && !Configuration.showChatAlertReentry && !isAlreadyHere) return;
-      // Return if entry alerts are disabled . (We need to ignore this check for already here alerts)
       if (player.entryCount == 1 && !Configuration.showChatAlertEntry && !isAlreadyHere) return;
 
-      // Show text alert for guests
       if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
 
       if (isVipPatron(player))
@@ -1587,22 +1362,17 @@ namespace VenueManager
         messageBuilder.AddText("⚠ BANNED ");
       }
 
-      // Player Color
       messageBuilder.AddUiForeground(Colors.getChatColor(player, true));
 
-      // Add player message 
       messageBuilder.Add(new PlayerPayload(player.Name, player.homeWorld));
       messageBuilder.AddUiForegroundOff();
 
-      // Message Color 
       messageBuilder.AddUiForeground(Colors.getChatColor(player, false));
 
-      // Current player has re-entered the house
       if (justEnteredHouse)
       {
         messageBuilder.AddText(" is already inside");
       }
-      // Player enters house while you are already inside
       else
       {
         messageBuilder.AddText(" has entered");
@@ -1610,7 +1380,6 @@ namespace VenueManager
           messageBuilder.AddText(" (" + player.entryCount + ")");
       }
 
-      // Venue Name
       var venue = venueList.venues[pluginState.currentHouse.houseId];
       messageBuilder.AddText(" " + venue.name);
 
@@ -1622,27 +1391,22 @@ namespace VenueManager
     {
       if (!Configuration.showChatAlerts) return;
       if (!Configuration.showChatAlertLeave) return;
-      // Don't show alerts if snoozed 
       if (pluginState.snoozed) return;
 
       var isSelf = PlayerState.CharacterName == player.Name;
       if (isSelf) return;
-      // Don't show leave alerts if user just entered the building
       if (justEnteredHouse) return;
 
-      // Sync/chat alerts are only meaningful at a venue you've registered.
+      // Only meaningful at a registered venue
       if (!venueList.venues.TryGetValue(pluginState.currentHouse.houseId, out var venue)) return;
 
       var messageBuilder = new SeStringBuilder();
 
-      // Add plugin name
       if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
 
-      // Add Player name
       messageBuilder.Add(new PlayerPayload(player.Name, player.homeWorld));
       messageBuilder.AddText(" has left");
 
-      // Add Venue info
       messageBuilder.AddText(" " + venue.name);
 
       var entry = new XivChatEntry() { Message = messageBuilder.Build() };
@@ -1661,7 +1425,6 @@ namespace VenueManager
       return guestLists[0];
     }
 
-    // Post a clickable player link in chat
     public void chatPlayerLink(Player player)
     {
 
@@ -1672,22 +1435,9 @@ namespace VenueManager
     }
 
     /// <summary>
-    /// Fire-and-forget patron-visit sync. Every enter/re-entry/leave the
-    /// plugin observes at the current house is routed through here. We
-    /// intentionally DO NOT filter out the plugin user's own character —
-    /// staff who are off-duty (no active shift) count as patrons visiting
-    /// their own venue, and the server classifies via wasWorking on insert.
-    ///
-    /// Gating order (cheapest first):
-    ///   1. Sync enabled + API key present + client configured.
-    ///   2. Current house → xiv-app venueId mapping exists.
-    ///   3. If syncOnlyDuringEvents, the cached event-presence flag is true
-    ///      (or, on cache miss, we fetch it async and bail for this arrival
-    ///      — the next arrival within the TTL will go through).
-    ///   4. Post.
-    /// All failures log at Debug and swallow — we never surface a sync
-    /// hiccup in chat during live service.
+    /// Fire-and-forget patron-visit sync for every enter/re-entry/leave observed at the current house.
     /// </summary>
+    /// <remarks>See ARCHITECTURE.md § Patron sync &amp; chat alerts for gating order and self-character handling.</remarks>
     public void TryLogPatronVisit(string characterName, string worldName, string action)
     {
       if (!Configuration.syncToXivApp) return;
@@ -1699,8 +1449,7 @@ namespace VenueManager
       if (houseId == 0) return;
       if (!Configuration.houseToXivAppVenue.TryGetValue(houseId, out var venueId) || string.IsNullOrEmpty(venueId))
       {
-        // No link configured for this house — silent skip. The VenuesTab
-        // linking UI is the user-facing remedy.
+        // No link configured for this house — VenuesTab linking UI is the remedy
         return;
       }
 
@@ -1714,7 +1463,7 @@ namespace VenueManager
             if (cached == null)
             {
               var fresh = await xivAppClient.Venue.GetActiveEventAsync(venueId);
-              if (fresh == null) return; // transport error — try again next arrival
+              if (fresh == null) return; // transport error, try again next arrival
               eventPresence.Set(venueId, fresh.Active, fresh.EventId);
               if (!fresh.Active) return;
             }
