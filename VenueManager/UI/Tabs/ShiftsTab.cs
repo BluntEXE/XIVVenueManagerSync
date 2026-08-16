@@ -52,24 +52,7 @@ public class ShiftsTab : ITab
       return;
     }
 
-    // Auto-refresh on interval
-    if (!loading && DateTime.Now - lastFetch > RefreshInterval)
-    {
-      _ = FetchShiftsAsync();
-    }
-
-    // Manual refresh button
-    if (loading)
-    {
-      ImGui.TextDisabled("Loading...");
-    }
-    else
-    {
-      if (ImGui.SmallButton("Refresh"))
-      {
-        _ = FetchShiftsAsync();
-      }
-    }
+    ThemeManager.PollGate(loading, lastFetch, RefreshInterval, () => { _ = FetchShiftsAsync(); });
 
     ImGui.Separator();
 

@@ -162,6 +162,29 @@ public static class ThemeManager
         return true;
     }
 
+    // Auto-refresh-on-interval + "Loading..."/manual "Refresh" button, shared by
+    // tabs that poll on a timer. `fetch` is expected to update the tab's own
+    // lastFetch field itself once the fetch completes - this helper only reads it.
+    public static void PollGate(bool loading, DateTime lastFetch, TimeSpan refreshInterval, Action fetch)
+    {
+        if (!loading && DateTime.Now - lastFetch > refreshInterval)
+        {
+            fetch();
+        }
+
+        if (loading)
+        {
+            ImGui.TextDisabled("Loading...");
+        }
+        else
+        {
+            if (ImGui.SmallButton("Refresh"))
+            {
+                fetch();
+            }
+        }
+    }
+
     // Styled "not configured / action required" banner.
     // Use for gate messages at the top of tabs (no API key, no venue, etc.).
     public static void ConfigBanner(string message)

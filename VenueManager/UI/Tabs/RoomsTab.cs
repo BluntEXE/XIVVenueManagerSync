@@ -45,22 +45,7 @@ public class RoomsTab : ITab
       return;
     }
 
-    if (!loading && DateTime.Now - lastFetch > RefreshInterval)
-    {
-      _ = FetchRoomsAsync();
-    }
-
-    if (loading)
-    {
-      ImGui.TextDisabled("Loading...");
-    }
-    else
-    {
-      if (ImGui.SmallButton("Refresh"))
-      {
-        _ = FetchRoomsAsync();
-      }
-    }
+    ThemeManager.PollGate(loading, lastFetch, RefreshInterval, () => { _ = FetchRoomsAsync(); });
 
     ImGui.Separator();
 
