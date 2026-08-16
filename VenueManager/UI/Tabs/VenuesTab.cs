@@ -41,12 +41,15 @@ public class VenuesTab : ITab
     ImGuiTableColumnSortSpecsPtr currentSpecs = sortSpecs.Specs;
 
     var venues = plugin.venueList.venues.ToList();
+    // Column indices count every table column including NoSort ones (teleport/
+    // copy/house-icon occupy 0-2), not just the sortable columns - verified
+    // against the actual TableSetupColumn calls below, not assumed.
     Func<Venue, string>? keySelector = currentSpecs.ColumnIndex switch
     {
-      2 => venue => venue.name,       // Name
-      3 => venue => venue.district,   // District
-      7 => venue => venue.WorldName,  // World
-      8 => venue => venue.DataCenter, // Datacenter
+      3 => venue => venue.name,       // Name
+      4 => venue => venue.district,   // District
+      8 => venue => venue.WorldName,  // World
+      9 => venue => venue.DataCenter, // Datacenter
       _ => null,
     };
     if (keySelector != null &&
