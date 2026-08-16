@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -40,26 +41,21 @@ public class VenuesTab : ITab
     ImGuiTableColumnSortSpecsPtr currentSpecs = sortSpecs.Specs;
 
     var venues = plugin.venueList.venues.ToList();
-    switch (currentSpecs.ColumnIndex)
+    Func<Venue, string>? keySelector = currentSpecs.ColumnIndex switch
     {
-      case 2: // Name
-        if (currentSpecs.SortDirection == ImGuiSortDirection.Ascending) venues.Sort((pair1, pair2) => pair2.Value.name.CompareTo(pair1.Value.name));
-        else if (currentSpecs.SortDirection == ImGuiSortDirection.Descending) venues.Sort((pair1, pair2) => pair1.Value.name.CompareTo(pair2.Value.name));
-        break;
-      case 3: // District 
-        if (currentSpecs.SortDirection == ImGuiSortDirection.Ascending) venues.Sort((pair1, pair2) => pair2.Value.district.CompareTo(pair1.Value.district));
-        else if (currentSpecs.SortDirection == ImGuiSortDirection.Descending) venues.Sort((pair1, pair2) => pair1.Value.district.CompareTo(pair2.Value.district));
-        break;
-      case 7: // World
-        if (currentSpecs.SortDirection == ImGuiSortDirection.Ascending) venues.Sort((pair1, pair2) => pair2.Value.WorldName.CompareTo(pair1.Value.WorldName));
-        else if (currentSpecs.SortDirection == ImGuiSortDirection.Descending) venues.Sort((pair1, pair2) => pair1.Value.WorldName.CompareTo(pair2.Value.WorldName));
-        break;
-      case 8: // Datacenter 
-        if (currentSpecs.SortDirection == ImGuiSortDirection.Ascending) venues.Sort((pair1, pair2) => pair2.Value.DataCenter.CompareTo(pair1.Value.DataCenter));
-        else if (currentSpecs.SortDirection == ImGuiSortDirection.Descending) venues.Sort((pair1, pair2) => pair1.Value.DataCenter.CompareTo(pair2.Value.DataCenter));
-        break;
-      default:
-        break;
+      2 => venue => venue.name,       // Name
+      3 => venue => venue.district,   // District
+      7 => venue => venue.WorldName,  // World
+      8 => venue => venue.DataCenter, // Datacenter
+      _ => null,
+    };
+    if (keySelector != null &&
+        currentSpecs.SortDirection is ImGuiSortDirection.Ascending or ImGuiSortDirection.Descending)
+    {
+      bool descending = currentSpecs.SortDirection == ImGuiSortDirection.Descending;
+      venues.Sort((pair1, pair2) => descending
+        ? keySelector(pair1.Value).CompareTo(keySelector(pair2.Value))
+        : keySelector(pair2.Value).CompareTo(keySelector(pair1.Value)));
     }
 
     return venues;
