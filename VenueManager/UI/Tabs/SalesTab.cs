@@ -70,16 +70,11 @@ public class SalesTab : ITab
     ImGui.BeginChild(1);
 
     // --- Gates ---------------------------------------------------------
-    if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured)
+    if (!ThemeManager.RequireXivAppReady(
+      plugin,
+      "XIV-App is not configured. Add your API key in Settings before logging sales.",
+      "No venue selected. Pick an active venue in Settings."))
     {
-      ThemeManager.ConfigBanner("XIV-App is not configured. Add your API key in Settings before logging sales.");
-      ImGui.EndChild();
-      return;
-    }
-
-    if (string.IsNullOrEmpty(plugin.currentXivAppVenueId))
-    {
-      ThemeManager.ConfigBanner("No venue selected. Pick an active venue in Settings.");
       ImGui.EndChild();
       return;
     }

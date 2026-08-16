@@ -144,6 +144,24 @@ public static class ThemeManager
         ImGui.Separator();
     }
 
+    // Gate for tabs that need XIV-App configured with a venue selected before
+    // drawing their real content. Draws a ConfigBanner and returns false if not
+    // ready; callers still own EndChild()/return at the call site.
+    public static bool RequireXivAppReady(Plugin plugin, string? notConfiguredMessage = null, string? noVenueMessage = null)
+    {
+        if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured)
+        {
+            ConfigBanner(notConfiguredMessage ?? "XIV-App is not configured. Add your API key in Settings.");
+            return false;
+        }
+        if (string.IsNullOrEmpty(plugin.currentXivAppVenueId))
+        {
+            ConfigBanner(noVenueMessage ?? "No venue selected. Pick one in Settings.");
+            return false;
+        }
+        return true;
+    }
+
     // Styled "not configured / action required" banner.
     // Use for gate messages at the top of tabs (no API key, no venue, etc.).
     public static void ConfigBanner(string message)

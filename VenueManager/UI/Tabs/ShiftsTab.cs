@@ -46,16 +46,8 @@ public class ShiftsTab : ITab
     ImGui.BeginChild(1);
 
     // --- Gates ---
-    if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured)
+    if (!ThemeManager.RequireXivAppReady(plugin))
     {
-      ThemeManager.ConfigBanner("XIV-App is not configured. Add your API key in Settings.");
-      ImGui.EndChild();
-      return;
-    }
-
-    if (string.IsNullOrEmpty(plugin.currentXivAppVenueId))
-    {
-      ThemeManager.ConfigBanner("No venue selected. Pick one in Settings.");
       ImGui.EndChild();
       return;
     }
