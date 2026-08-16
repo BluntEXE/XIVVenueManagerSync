@@ -538,11 +538,12 @@ namespace VenueManager
       }
     }
 
-    // Used by `/xvm start` — clocks into the first SCHEDULED shift
-    public async Task ShiftClockInSilentAsync()
+    // Runs `action` while holding clockSem (non-blocking try-acquire), releasing
+    // it afterward regardless of outcome. Chat/error-message wording and the
+    // clock-in-vs-out domain logic stay in each caller - only the wait/release
+    // scaffolding is shared.
+    private async Task WithClockLockAsync(string prefix, Func<Task> action)
     {
-      if (!TryGetChatPrefix(out string prefix)) return;
-
       if (!await clockSem.WaitAsync(0))
       {
         Chat.Print(prefix + "A clock action is already in progress.");
@@ -550,28 +551,7 @@ namespace VenueManager
       }
       try
       {
-        var shifts = (await xivAppClient.Shift.GetShiftsResponseAsync(currentXivAppVenueId)).Shifts;
-        var scheduled = shifts.Find(s => s.Status == "SCHEDULED");
-
-        if (scheduled == null)
-        {
-          Chat.Print(prefix + "No scheduled shift found to clock into.");
-          return;
-        }
-
-        var result = await xivAppClient.Shift.ClockInAsync(scheduled.Id);
-        if (result.Success)
-        {
-          Chat.Print(prefix + "Clocked in. Shift is now active.");
-          lastShiftPollMs = 0;
-        }
-        else
-          Chat.Print(prefix + $"Clock-in failed: {result.Error ?? "unknown error"}");
-      }
-      catch (Exception ex)
-      {
-        Log.Error($"ShiftClockInSilentAsync exception: {ex}");
-        Chat.Print(prefix + $"Clock-in error: {ex.Message}");
+        await action();
       }
       finally
       {
@@ -579,48 +559,77 @@ namespace VenueManager
       }
     }
 
-    // Used by `/xvm end` — clocks out of the first ACTIVE shift
-    public async Task ShiftClockOutSilentAsync()
+    // Used by `/xvm start` — clocks into the first SCHEDULED shift
+    public Task ShiftClockInSilentAsync()
     {
-      if (!TryGetChatPrefix(out string prefix)) return;
+      if (!TryGetChatPrefix(out string prefix)) return Task.CompletedTask;
 
-      if (!await clockSem.WaitAsync(0))
+      return WithClockLockAsync(prefix, async () =>
       {
-        Chat.Print(prefix + "A clock action is already in progress.");
-        return;
-      }
-      try
-      {
-        var shifts = (await xivAppClient.Shift.GetShiftsResponseAsync(currentXivAppVenueId)).Shifts;
-        var active = shifts.Find(s => s.Status == "ACTIVE");
-
-        if (active == null)
+        try
         {
-          Chat.Print(prefix + "No active shift found to clock out of.");
-          return;
-        }
+          var shifts = (await xivAppClient.Shift.GetShiftsResponseAsync(currentXivAppVenueId)).Shifts;
+          var scheduled = shifts.Find(s => s.Status == "SCHEDULED");
 
-        var result = await xivAppClient.Shift.ClockOutAsync(active.Id);
-        if (result.Success)
-        {
-          var hoursMsg = result.HoursWorked.HasValue
-            ? $" ({result.HoursWorked.Value:F1}h worked)"
-            : "";
-          Chat.Print(prefix + $"Clocked out.{hoursMsg}");
-          lastShiftPollMs = 0;
+          if (scheduled == null)
+          {
+            Chat.Print(prefix + "No scheduled shift found to clock into.");
+            return;
+          }
+
+          var result = await xivAppClient.Shift.ClockInAsync(scheduled.Id);
+          if (result.Success)
+          {
+            Chat.Print(prefix + "Clocked in. Shift is now active.");
+            lastShiftPollMs = 0;
+          }
+          else
+            Chat.Print(prefix + $"Clock-in failed: {result.Error ?? "unknown error"}");
         }
-        else
-          Chat.Print(prefix + $"Clock-out failed: {result.Error ?? "unknown error"}");
-      }
-      catch (Exception ex)
+        catch (Exception ex)
+        {
+          Log.Error($"ShiftClockInSilentAsync exception: {ex}");
+          Chat.Print(prefix + $"Clock-in error: {ex.Message}");
+        }
+      });
+    }
+
+    // Used by `/xvm end` — clocks out of the first ACTIVE shift
+    public Task ShiftClockOutSilentAsync()
+    {
+      if (!TryGetChatPrefix(out string prefix)) return Task.CompletedTask;
+
+      return WithClockLockAsync(prefix, async () =>
       {
-        Log.Error($"ShiftClockOutSilentAsync exception: {ex}");
-        Chat.Print(prefix + $"Clock-out error: {ex.Message}");
-      }
-      finally
-      {
-        clockSem.Release();
-      }
+        try
+        {
+          var shifts = (await xivAppClient.Shift.GetShiftsResponseAsync(currentXivAppVenueId)).Shifts;
+          var active = shifts.Find(s => s.Status == "ACTIVE");
+
+          if (active == null)
+          {
+            Chat.Print(prefix + "No active shift found to clock out of.");
+            return;
+          }
+
+          var result = await xivAppClient.Shift.ClockOutAsync(active.Id);
+          if (result.Success)
+          {
+            var hoursMsg = result.HoursWorked.HasValue
+              ? $" ({result.HoursWorked.Value:F1}h worked)"
+              : "";
+            Chat.Print(prefix + $"Clocked out.{hoursMsg}");
+            lastShiftPollMs = 0;
+          }
+          else
+            Chat.Print(prefix + $"Clock-out failed: {result.Error ?? "unknown error"}");
+        }
+        catch (Exception ex)
+        {
+          Log.Error($"ShiftClockOutSilentAsync exception: {ex}");
+          Chat.Print(prefix + $"Clock-out error: {ex.Message}");
+        }
+      });
     }
 
     // Forces a fresh shift poll next tick so the DTR label updates within one frame of a clock action
