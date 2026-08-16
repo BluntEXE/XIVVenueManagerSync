@@ -353,7 +353,7 @@ namespace VenueManager
             Chat.Print(prefix + "No target selected.");
             return;
           }
-          _ = LogSaleSilentAsync(parsedAmount.Value, targetName);
+          _ = LogSaleOrTipSilentAsync(parsedAmount.Value, targetName, isTip: false);
           return;
         }
 
@@ -375,7 +375,7 @@ namespace VenueManager
             Chat.Print((this.Configuration.showPluginNameInChat ? $"[{Name}] " : "") + "Usage: /xvm sale! <amount> [customer]");
             return;
           }
-          _ = LogSaleSilentAsync(parsedAmount.Value, customerFromArgs);
+          _ = LogSaleOrTipSilentAsync(parsedAmount.Value, customerFromArgs, isTip: false);
           return;
         }
 
@@ -386,7 +386,7 @@ namespace VenueManager
             Chat.Print((this.Configuration.showPluginNameInChat ? $"[{Name}] " : "") + "Usage: /xvm tip! <amount> [customer]");
             return;
           }
-          _ = LogTipSilentAsync(parsedAmount.Value, customerFromArgs);
+          _ = LogSaleOrTipSilentAsync(parsedAmount.Value, customerFromArgs, isTip: true);
           return;
         }
 
@@ -473,46 +473,13 @@ namespace VenueManager
       return true;
     }
 
-    public async Task LogSaleSilentAsync(int amount, string? customer)
+    // Used by `/xvm sale!` and `/xvm tip!` — identical shape, differing only in the
+    // transaction type tag and the "sale"/"tip" wording in chat output.
+    public async Task LogSaleOrTipSilentAsync(int amount, string? customer, bool isTip)
     {
       if (!TryGetChatPrefix(out string prefix)) return;
 
-      try
-      {
-        string? trimmedName = string.IsNullOrWhiteSpace(customer) ? null : customer!.Trim();
-        var result = await xivAppClient.Patron.LogTransactionAsync(
-          currentXivAppVenueId,
-          null,
-          (decimal)amount,
-          trimmedName,
-          null
-        );
-
-        if (result.Success)
-        {
-          SessionSalesTotal += amount;
-          SessionSalesCount++;
-          Chat.Print(prefix + (trimmedName != null
-            ? $"Logged {amount}g from {trimmedName}"
-            : $"Logged {amount}g"));
-        }
-        else
-        {
-          Chat.Print(prefix + $"Sale failed: {result.Error ?? "unknown error"}");
-        }
-      }
-      catch (Exception ex)
-      {
-        Log.Error($"LogSaleSilentAsync exception: {ex}");
-        Chat.Print(prefix + $"Sale error: {ex.Message}");
-      }
-    }
-
-    // Used by `/xvm tip!` — same shape as LogSaleSilentAsync, tagged type="TIP"
-    public async Task LogTipSilentAsync(int amount, string? customer)
-    {
-      if (!TryGetChatPrefix(out string prefix)) return;
-
+      string label = isTip ? "Tip" : "Sale";
       try
       {
         string? trimmedName = string.IsNullOrWhiteSpace(customer) ? null : customer!.Trim();
@@ -522,26 +489,27 @@ namespace VenueManager
           (decimal)amount,
           trimmedName,
           null,
-          "TIP"
+          isTip ? "TIP" : null
         );
 
         if (result.Success)
         {
           SessionSalesTotal += amount;
           SessionSalesCount++;
+          string suffix = isTip ? " tip" : "";
           Chat.Print(prefix + (trimmedName != null
-            ? $"Logged {amount}g tip from {trimmedName}"
-            : $"Logged {amount}g tip"));
+            ? $"Logged {amount}g{suffix} from {trimmedName}"
+            : $"Logged {amount}g{suffix}"));
         }
         else
         {
-          Chat.Print(prefix + $"Tip failed: {result.Error ?? "unknown error"}");
+          Chat.Print(prefix + $"{label} failed: {result.Error ?? "unknown error"}");
         }
       }
       catch (Exception ex)
       {
-        Log.Error($"LogTipSilentAsync exception: {ex}");
-        Chat.Print(prefix + $"Tip error: {ex.Message}");
+        Log.Error($"LogSaleOrTipSilentAsync exception: {ex}");
+        Chat.Print(prefix + $"{label} error: {ex.Message}");
       }
     }
 
