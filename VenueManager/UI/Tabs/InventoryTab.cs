@@ -128,35 +128,37 @@ public class InventoryTab : ITab
   // an error we log via Plugin.Log.Warning, same as the ban command.
   private async Task LinkItemAsync(string serviceId, int itemId, string itemName, int iconId)
   {
-    if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
-
-    var result = await plugin.xivAppClient.Venue.LinkItemAsync(plugin.currentXivAppVenueId, serviceId, itemId, itemName, iconId);
-    if (result.Success)
-    {
-      linkingServiceId = null;
-      var servicesResp = await plugin.xivAppClient.Venue.GetServicesAsync(plugin.currentXivAppVenueId);
-      plugin.availableServices = servicesResp?.Services ?? plugin.availableServices;
-    }
-    else
-    {
-      Plugin.Log.Warning($"Failed to link item: {result.Error}");
-    }
+    await RunInventoryMutationAsync(
+      (client, venueId) => client.Venue.LinkItemAsync(venueId, serviceId, itemId, itemName, iconId),
+      () => linkingServiceId = null,
+      "link item");
   }
 
   private async Task RestockAsync(string serviceId, int count)
   {
+    await RunInventoryMutationAsync(
+      (client, venueId) => client.Venue.RestockAsync(venueId, serviceId, count),
+      () => restockingServiceId = null,
+      "restock");
+  }
+
+  private async Task RunInventoryMutationAsync(
+    Func<XIVAppApiClient, string, Task<LogTransactionResult>> mutation,
+    Action onSuccess,
+    string failureVerb)
+  {
     if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
 
-    var result = await plugin.xivAppClient.Venue.RestockAsync(plugin.currentXivAppVenueId, serviceId, count);
+    var result = await mutation(plugin.xivAppClient, plugin.currentXivAppVenueId);
     if (result.Success)
     {
-      restockingServiceId = null;
+      onSuccess();
       var servicesResp = await plugin.xivAppClient.Venue.GetServicesAsync(plugin.currentXivAppVenueId);
       plugin.availableServices = servicesResp?.Services ?? plugin.availableServices;
     }
     else
     {
-      Plugin.Log.Warning($"Failed to restock: {result.Error}");
+      Plugin.Log.Warning($"Failed to {failureVerb}: {result.Error}");
     }
   }
 }
