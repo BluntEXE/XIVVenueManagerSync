@@ -1073,6 +1073,7 @@ namespace VenueManager
 
               if (pluginState.currentHouse.houseId != computedHouseId.Value)
               {
+                var previousRoom = pluginState.currentHouse.room;
                 pluginState.currentHouse.houseId = computedHouseId.Value;
                 pluginState.currentHouse.plot = housingManager->GetCurrentPlot() + 1; // Game stores plot as -1
                 pluginState.currentHouse.ward = housingManager->GetCurrentWard() + 1; // Game stores ward as -1
@@ -1080,6 +1081,16 @@ namespace VenueManager
                 pluginState.currentHouse.type = (ushort)HousingManager.GetOriginalHouseTerritoryTypeId();
                 pluginState.currentHouse.district = TerritoryUtils.getDistrict(pluginState.currentHouse.type);
                 pluginState.currentHouse.worldId = currentWorldId;
+
+                // Auto-open Rooms tab when entering a private chamber (room > 0)
+                if (pluginState.currentHouse.room > 0 && previousRoom != pluginState.currentHouse.room)
+                {
+                  MainWindow.OpenTab("Rooms");
+                  if (!MainWindow.IsOpen)
+                    MainWindow.IsOpen = true;
+                  else
+                    Chat.Print($"[{Name}] You're in room {pluginState.currentHouse.room} - open XVM to reserve it.");
+                }
 
                 if (venueList.venues.ContainsKey(pluginState.currentHouse.houseId))
                 {
