@@ -28,7 +28,6 @@ public class RoomsTab : ITab
   // the moment staff switch away. Matches ShiftsTab's exact pattern.
   private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(25);
 
-  private Dictionary<string, string> noteDrafts = new();
   private HashSet<string> pendingRoomIds = new();
   private int selectedDurationIndex = -1;
 
@@ -101,12 +100,6 @@ public class RoomsTab : ITab
     ImGui.SameLine();
     ImGui.Text(room.Name);
 
-    if (!string.IsNullOrEmpty(room.Note))
-    {
-      ImGui.SameLine();
-      ImGui.TextDisabled($"({room.Note})");
-    }
-
     bool pending = pendingRoomIds.Contains(room.Id);
     bool isCurrentRoom = plugin.pluginState.currentHouse.room == room.RoomNumber;
     bool isInHouse = plugin.pluginState.userInHouse;
@@ -141,22 +134,6 @@ public class RoomsTab : ITab
       if (pending) ImGui.EndDisabled();
     }
 
-    if (!noteDrafts.TryGetValue(room.Id, out var draft))
-      draft = room.Note ?? "";
-
-    if (pending) ImGui.BeginDisabled();
-    ImGui.PushItemWidth(200);
-    if (ImGui.InputTextWithHint($"##note{room.Id}", "Note…", ref draft, 200, ImGuiInputTextFlags.EnterReturnsTrue))
-    {
-      _ = SetStatusAsync(room, room.IsOccupied, draft);
-    }
-    else
-    {
-      noteDrafts[room.Id] = draft;
-    }
-    ImGui.PopItemWidth();
-    if (pending) ImGui.EndDisabled();
-
     ImGui.Spacing();
   }
 
@@ -181,36 +158,14 @@ public class RoomsTab : ITab
     }
   }
 
-  private async Task SetStatusAsync(Room room, bool isOccupied, string? note)
+  public string GetRoomStatus(int roomNumber)
   {
-    if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
-    if (!pendingRoomIds.Add(room.Id)) return;
-
-    try
-    {
-      var result = await plugin.xivAppClient.Venue.SetRoomStatusAsync(plugin.currentXivAppVenueId, room.Id, isOccupied, note);
-      if (result.Success)
-      {
-        statusMessage = $"{room.Name}: {(isOccupied ? "marked occupied" : "marked free")}";
-        statusIsError = false;
-        noteDrafts.Remove(room.Id);
-        _ = FetchRoomsAsync();
-      }
-      else
-      {
-        statusMessage = $"Failed to update {room.Name}: {result.Error ?? "unknown error"}";
-        statusIsError = true;
-      }
-    }
-    catch (Exception ex)
-    {
-      statusMessage = $"Error: {ex.Message}";
-      statusIsError = true;
-    }
-    finally
-    {
-      pendingRoomIds.Remove(room.Id);
-    }
+    var room = rooms.FirstOrDefault(r => r.RoomNumber == roomNumber);
+    if (room == null) return "";
+    if (room.Disabled) return "Disabled";
+    if (room.Locked) return "Locked";
+    if (room.IsOccupied) return "Occupied";
+    return "Free";
   }
 
   private async Task ReserveRoomAsync(Room room, int durationMinutes)

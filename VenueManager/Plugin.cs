@@ -1089,7 +1089,18 @@ namespace VenueManager
                   if (!MainWindow.IsOpen)
                     MainWindow.IsOpen = true;
                   else
-                    Chat.Print($"[{Name}] You're in room {pluginState.currentHouse.room} - open XVM to reserve it.");
+                  {
+                    var status = MainWindow.Instance?.GetRoomStatus(pluginState.currentHouse.room) ?? "";
+                    var msg = status switch
+                    {
+                      "Free" => $"Room {pluginState.currentHouse.room}: Free - open plugin to reserve",
+                      "Occupied" => $"Room {pluginState.currentHouse.room}: Occupied",
+                      "Locked" => $"Room {pluginState.currentHouse.room}: Locked",
+                      "Disabled" => $"Room {pluginState.currentHouse.room}: Disabled",
+                      _ => $"Room {pluginState.currentHouse.room}: Free - open plugin to reserve",
+                    };
+                    Chat.Print($"[{Name}] {msg}");
+                  }
                 }
 
                 if (venueList.venues.ContainsKey(pluginState.currentHouse.houseId))

@@ -23,6 +23,7 @@ public class MainWindow : Window, IDisposable
     // the first-run override target, both of which are unique to it.
     private SalesTab salesTab;
     private SettingsTab settingsTab;
+    private RoomsTab roomsTab;
     private List<ITab> tabs;
 
     private ITab _currentTab;
@@ -31,10 +32,13 @@ public class MainWindow : Window, IDisposable
     private const float SidebarWidth  = 46f;
     private const float NavButtonSize = 38f;
 
+    public static MainWindow? Instance { get; private set; }
+
     public MainWindow(Plugin plugin) : base(
         "XIV Venue Manager###XIVVMMain",
         ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
+        Instance = this;
         this.SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(320, 400),
@@ -48,6 +52,7 @@ public class MainWindow : Window, IDisposable
 
         this.salesTab      = new SalesTab(plugin);
         this.settingsTab   = new SettingsTab(plugin);
+        this.roomsTab      = new RoomsTab(plugin);
 
         // Order here is nav-icon draw order — matches today's exact order.
         this.tabs = new List<ITab>
@@ -56,7 +61,7 @@ public class MainWindow : Window, IDisposable
             salesTab,
             new GuestLogTab(plugin),
             new ShiftsTab(plugin),
-            new RoomsTab(plugin),
+            roomsTab,
             new InventoryTab(plugin),
             new VenuesTab(plugin),
             settingsTab,
@@ -77,6 +82,9 @@ public class MainWindow : Window, IDisposable
     // Forward a prefill request to the Sales tab.
     public void PrefillSale(int? amount, string? customer, bool tip = false)
         => salesTab.Prefill(amount, customer, tip);
+
+    public string GetRoomStatus(int roomNumber)
+        => roomsTab.GetRoomStatus(roomNumber);
 
     public override void Draw()
     {
