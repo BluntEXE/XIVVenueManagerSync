@@ -1131,8 +1131,10 @@ namespace VenueManager
 
             // Portrait/Adventure plates show up with an empty name
             if (pc.Name.TextValue.Length == 0) continue;
-            // SubKind 4 = players
             if (o.SubKind != 4) continue;
+
+            if (IsOutsidePlotBounds(o.Position)) continue;
+
             playerCount++;
 
             if (seenPlayers.ContainsKey(player.Name))
@@ -1423,6 +1425,17 @@ namespace VenueManager
           Log.Debug($"TryLogPatronVisit failed: {ex.Message}");
         }
       });
+    }
+
+    private static unsafe bool IsOutsidePlotBounds(System.Numerics.Vector3 position)
+    {
+      var hm = HousingManager.Instance();
+      if (hm == null || !hm->IsOutside()) return false;
+      var self = Objects[0];
+      if (self == null) return false;
+      var dx = self.Position.X - position.X;
+      var dz = self.Position.Z - position.Z;
+      return dx * dx + dz * dz > 2500f;
     }
 
   } // Plugin

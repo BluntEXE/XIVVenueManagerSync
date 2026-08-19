@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
@@ -29,6 +30,13 @@ public class RoomsTab : ITab
 
   private Dictionary<string, string> noteDrafts = new();
   private HashSet<string> pendingRoomIds = new();
+  private int selectedDurationIndex = -1;
+
+  private static readonly (string Label, int Minutes)[] DurationOptions = {
+    ("30 min", 30), ("1 hr", 60), ("1:30", 90), ("2 hr", 120),
+    ("2:30", 150), ("3 hr", 180), ("3:30", 210), ("4 hr", 240),
+    ("5 hr", 300), ("6 hr", 360), ("7 hr", 420), ("8 hr", 480),
+  };
 
   public RoomsTab(Plugin plugin)
   {
@@ -70,8 +78,24 @@ public class RoomsTab : ITab
 
   private void drawRoomRow(Room room)
   {
-    var statusColor = room.IsOccupied ? Colors.XivRed : Colors.XivGreen;
-    var statusLabel = room.IsOccupied ? "Occupied" : "Free";
+    var statusColor = Colors.XivGreen;
+    var statusLabel = "Free";
+
+    if (room.Disabled)
+    {
+      statusColor = Colors.XivSubtext0;
+      statusLabel = "Disabled";
+    }
+    else if (room.Locked)
+    {
+      statusColor = Colors.XivYellow;
+      statusLabel = "Locked";
+    }
+    else if (room.IsOccupied)
+    {
+      statusColor = Colors.XivRed;
+      statusLabel = "Occupied";
+    }
 
     ImGui.TextColored(statusColor, statusLabel);
     ImGui.SameLine();
@@ -84,20 +108,54 @@ public class RoomsTab : ITab
     }
 
     bool pending = pendingRoomIds.Contains(room.Id);
+    bool isCurrentRoom = plugin.pluginState.currentHouse.room == room.RoomNumber;
+    bool isInHouse = plugin.pluginState.userInHouse;
+    bool canReserve = !room.IsOccupied && !room.Locked && !room.Disabled && isInHouse && isCurrentRoom;
 
-    string toggleLabel = room.IsOccupied ? $"Mark Free##{room.Id}" : $"Mark Occupied##{room.Id}";
-    float btnWidth = ImGui.CalcTextSize(toggleLabel.Split('#')[0]).X + ImGui.GetStyle().FramePadding.X * 2;
-    float rightEdge = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX();
-    ImGui.SameLine();
-    ImGui.SetCursorPosX(rightEdge - btnWidth);
-
-    if (pending) ImGui.BeginDisabled();
-    using (ThemeManager.PrimaryButton())
+    if (canReserve)
     {
-      if (ImGui.SmallButton(toggleLabel))
-        _ = SetStatusAsync(room, !room.IsOccupied, room.Note);
+      ImGui.SameLine();
+      ImGui.PushItemWidth(120);
+
+      int durationIndex = selectedDurationIndex;
+      if (pending) ImGui.BeginDisabled();
+      if (ImGui.Combo($"##duration{room.Id}", ref durationIndex,
+          DurationOptions.Select(d => d.Label).ToArray(), DurationOptions.Length))
+      {
+        selectedDurationIndex = durationIndex;
+        _ = ReserveRoomAsync(room, DurationOptions[durationIndex].Minutes);
+      }
+      if (pending) ImGui.EndDisabled();
+
+      ImGui.PopItemWidth();
     }
-    if (pending) ImGui.EndDisabled();
+    else if (room.IsOccupied && isCurrentRoom)
+    {
+      ImGui.SameLine();
+      if (pending) ImGui.BeginDisabled();
+      using (ThemeManager.PrimaryButton())
+      {
+        if (ImGui.SmallButton($"Release##{room.Id}"))
+          _ = ReleaseRoomAsync(room);
+      }
+      if (pending) ImGui.EndDisabled();
+    }
+    else
+    {
+      string toggleLabel = room.IsOccupied ? $"Mark Free##{room.Id}" : $"Mark Occupied##{room.Id}";
+      float btnWidth = ImGui.CalcTextSize(toggleLabel.Split('#')[0]).X + ImGui.GetStyle().FramePadding.X * 2;
+      float rightEdge = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX();
+      ImGui.SameLine();
+      ImGui.SetCursorPosX(rightEdge - btnWidth);
+
+      if (pending) ImGui.BeginDisabled();
+      using (ThemeManager.PrimaryButton())
+      {
+        if (ImGui.SmallButton(toggleLabel))
+          _ = SetStatusAsync(room, !room.IsOccupied, room.Note);
+      }
+      if (pending) ImGui.EndDisabled();
+    }
 
     if (!noteDrafts.TryGetValue(room.Id, out var draft))
       draft = room.Note ?? "";
@@ -157,6 +215,73 @@ public class RoomsTab : ITab
       else
       {
         statusMessage = $"Failed to update {room.Name}: {result.Error ?? "unknown error"}";
+        statusIsError = true;
+      }
+    }
+    catch (Exception ex)
+    {
+      statusMessage = $"Error: {ex.Message}";
+      statusIsError = true;
+    }
+    finally
+    {
+      pendingRoomIds.Remove(room.Id);
+    }
+  }
+
+  private async Task ReserveRoomAsync(Room room, int durationMinutes)
+  {
+    if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
+    if (!pendingRoomIds.Add(room.Id)) return;
+
+    try
+    {
+      var result = await plugin.xivAppClient.Venue.ReserveRoomAsync(
+        plugin.currentXivAppVenueId, room.Id, durationMinutes);
+
+      if (result.Success)
+      {
+        statusMessage = $"Reserved {room.Name} for {durationMinutes} min";
+        statusIsError = false;
+        _ = FetchRoomsAsync();
+      }
+      else
+      {
+        statusMessage = $"Failed to reserve {room.Name}: {result.Error ?? "unknown error"}";
+        statusIsError = true;
+      }
+    }
+    catch (Exception ex)
+    {
+      statusMessage = $"Error: {ex.Message}";
+      statusIsError = true;
+    }
+    finally
+    {
+      pendingRoomIds.Remove(room.Id);
+      selectedDurationIndex = -1;
+    }
+  }
+
+  private async Task ReleaseRoomAsync(Room room)
+  {
+    if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
+    if (!pendingRoomIds.Add(room.Id)) return;
+
+    try
+    {
+      var result = await plugin.xivAppClient.Venue.ReleaseRoomAsync(
+        plugin.currentXivAppVenueId, room.Id);
+
+      if (result.Success)
+      {
+        statusMessage = $"Released {room.Name}";
+        statusIsError = false;
+        _ = FetchRoomsAsync();
+      }
+      else
+      {
+        statusMessage = $"Failed to release {room.Name}: {result.Error ?? "unknown error"}";
         statusIsError = true;
       }
     }

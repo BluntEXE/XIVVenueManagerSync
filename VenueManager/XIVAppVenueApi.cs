@@ -105,6 +105,39 @@ namespace VenueManager
         _ => Task.FromResult(new LogTransactionResult { Success = true }));
     }
 
+    public Task<LogTransactionResult> ReserveRoomAsync(string venueId, string roomId, int durationMinutes)
+    {
+      var request = new ReserveRoomRequest
+      {
+        VenueId = venueId,
+        RoomId = roomId,
+        DurationMinutes = durationMinutes,
+      };
+      return _client.PostForResultAsync<ReserveRoomRequest, LogTransactionResult>(
+        "/api/plugin/rooms/reserve",
+        request,
+        "reserve room",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        _ => Task.FromResult(new LogTransactionResult { Success = true }));
+    }
+
+    public Task<LogTransactionResult> ReleaseRoomAsync(string venueId, string roomId)
+    {
+      var request = new ReleaseRoomRequest
+      {
+        VenueId = venueId,
+        RoomId = roomId,
+      };
+      return _client.PostForResultAsync<ReleaseRoomRequest, LogTransactionResult>(
+        "/api/plugin/rooms/release",
+        request,
+        "release room",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        _ => Task.FromResult(new LogTransactionResult { Success = true }));
+    }
+
     public Task<bool> GetInventoryEnabledAsync(string venueId) =>
       _client.GetAsync<XIVAppInventorySettingsResponse, bool>(
         $"/api/plugin/inventory-settings?venueId={venueId}",

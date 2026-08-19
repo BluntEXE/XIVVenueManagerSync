@@ -158,6 +158,15 @@ namespace VenueManager
 
     [JsonPropertyName("note")]
     public string? Note { get; set; }
+
+    [JsonPropertyName("locked")]
+    public bool Locked { get; set; }
+
+    [JsonPropertyName("disabled")]
+    public bool Disabled { get; set; }
+
+    [JsonPropertyName("roomNumber")]
+    public int RoomNumber { get; set; }
   }
 
   public class RoomsResponse
@@ -180,6 +189,27 @@ namespace VenueManager
     [JsonPropertyName("note")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Note { get; set; }
+  }
+
+  public class ReserveRoomRequest
+  {
+    [JsonPropertyName("venueId")]
+    public string VenueId { get; set; } = "";
+
+    [JsonPropertyName("roomId")]
+    public string RoomId { get; set; } = "";
+
+    [JsonPropertyName("durationMinutes")]
+    public int DurationMinutes { get; set; }
+  }
+
+  public class ReleaseRoomRequest
+  {
+    [JsonPropertyName("venueId")]
+    public string VenueId { get; set; } = "";
+
+    [JsonPropertyName("roomId")]
+    public string RoomId { get; set; } = "";
   }
 
   public class XIVAppVenuesResponse
