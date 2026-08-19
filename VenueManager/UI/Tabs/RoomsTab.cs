@@ -134,6 +134,22 @@ public class RoomsTab : ITab
       if (pending) ImGui.EndDisabled();
     }
 
+    // Lock/Disable buttons for managers
+    if (!room.IsOccupied && isInHouse && isCurrentRoom)
+    {
+      ImGui.SameLine();
+      if (pending) ImGui.BeginDisabled();
+      if (ImGui.SmallButton(room.Locked ? $"Unlock##{room.Id}" : $"Lock##{room.Id}"))
+        _ = ToggleLockAsync(room);
+      if (pending) ImGui.EndDisabled();
+
+      ImGui.SameLine();
+      if (pending) ImGui.BeginDisabled();
+      if (ImGui.SmallButton(room.Disabled ? $"Enable##{room.Id}" : $"Disable##{room.Id}"))
+        _ = ToggleDisableAsync(room);
+      if (pending) ImGui.EndDisabled();
+    }
+
     ImGui.Spacing();
   }
 
@@ -221,6 +237,72 @@ public class RoomsTab : ITab
       else
       {
         statusMessage = $"Failed to release {room.Name}: {result.Error ?? "unknown error"}";
+        statusIsError = true;
+      }
+    }
+    catch (Exception ex)
+    {
+      statusMessage = $"Error: {ex.Message}";
+      statusIsError = true;
+    }
+    finally
+    {
+      pendingRoomIds.Remove(room.Id);
+    }
+  }
+
+  private async Task ToggleLockAsync(Room room)
+  {
+    if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
+    if (!pendingRoomIds.Add(room.Id)) return;
+
+    try
+    {
+      var result = await plugin.xivAppClient.Venue.UpdateRoomAsync(
+        plugin.currentXivAppVenueId, room.Id, locked: !room.Locked);
+
+      if (result.Success)
+      {
+        statusMessage = room.Locked ? $"Unlocked {room.Name}" : $"Locked {room.Name}";
+        statusIsError = false;
+        _ = FetchRoomsAsync();
+      }
+      else
+      {
+        statusMessage = $"Failed to update {room.Name}: {result.Error ?? "unknown error"}";
+        statusIsError = true;
+      }
+    }
+    catch (Exception ex)
+    {
+      statusMessage = $"Error: {ex.Message}";
+      statusIsError = true;
+    }
+    finally
+    {
+      pendingRoomIds.Remove(room.Id);
+    }
+  }
+
+  private async Task ToggleDisableAsync(Room room)
+  {
+    if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
+    if (!pendingRoomIds.Add(room.Id)) return;
+
+    try
+    {
+      var result = await plugin.xivAppClient.Venue.UpdateRoomAsync(
+        plugin.currentXivAppVenueId, room.Id, disabled: !room.Disabled);
+
+      if (result.Success)
+      {
+        statusMessage = room.Disabled ? $"Enabled {room.Name}" : $"Disabled {room.Name}";
+        statusIsError = false;
+        _ = FetchRoomsAsync();
+      }
+      else
+      {
+        statusMessage = $"Failed to update {room.Name}: {result.Error ?? "unknown error"}";
         statusIsError = true;
       }
     }

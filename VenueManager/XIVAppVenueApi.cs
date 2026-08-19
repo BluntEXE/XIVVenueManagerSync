@@ -138,6 +138,39 @@ namespace VenueManager
         _ => Task.FromResult(new LogTransactionResult { Success = true }));
     }
 
+    public async Task<LogTransactionResult> UpdateRoomAsync(string venueId, string roomId, bool? locked = null, bool? disabled = null)
+    {
+      if (!_client.IsConfigured)
+        return new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." };
+
+      try
+      {
+        var data = new Dictionary<string, object>();
+        if (locked.HasValue) data["locked"] = locked.Value;
+        if (disabled.HasValue) data["disabled"] = disabled.Value;
+
+        var response = await _client.Http.PatchAsJsonAsync($"/api/venues/{venueId}/rooms/{roomId}", data);
+        if (!response.IsSuccessStatusCode)
+        {
+          var error = await response.Content.ReadAsStringAsync();
+          return new LogTransactionResult { Success = false, Error = $"Failed to update room: {response.StatusCode} - {error}" };
+        }
+        return new LogTransactionResult { Success = true };
+      }
+      catch (HttpRequestException ex)
+      {
+        return new LogTransactionResult { Success = false, Error = $"Network error: {ex.Message}" };
+      }
+      catch (TaskCanceledException)
+      {
+        return new LogTransactionResult { Success = false, Error = "Request timed out." };
+      }
+      catch (Exception ex)
+      {
+        return new LogTransactionResult { Success = false, Error = $"Error: {ex.Message}" };
+      }
+    }
+
     public Task<bool> GetInventoryEnabledAsync(string venueId) =>
       _client.GetAsync<XIVAppInventorySettingsResponse, bool>(
         $"/api/plugin/inventory-settings?venueId={venueId}",
