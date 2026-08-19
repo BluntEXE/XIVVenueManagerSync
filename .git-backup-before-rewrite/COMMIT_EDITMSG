@@ -1,8 +1,0 @@
-Bump version to 3.1.6 for Dalamud update detection
-
-Version was stuck at 3.1.5 across three commits (Arc 1 tab
-reorder, Arc 2 deep links, Arc 7 shifts). Dalamud compares
-repo.json AssemblyVersion to detect updates, so all three
-version files must be bumped in lockstep.
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
