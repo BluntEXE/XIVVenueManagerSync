@@ -140,22 +140,6 @@ public class RoomsTab : ITab
       }
       if (pending) ImGui.EndDisabled();
     }
-    else
-    {
-      string toggleLabel = room.IsOccupied ? $"Mark Free##{room.Id}" : $"Mark Occupied##{room.Id}";
-      float btnWidth = ImGui.CalcTextSize(toggleLabel.Split('#')[0]).X + ImGui.GetStyle().FramePadding.X * 2;
-      float rightEdge = ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX();
-      ImGui.SameLine();
-      ImGui.SetCursorPosX(rightEdge - btnWidth);
-
-      if (pending) ImGui.BeginDisabled();
-      using (ThemeManager.PrimaryButton())
-      {
-        if (ImGui.SmallButton(toggleLabel))
-          _ = SetStatusAsync(room, !room.IsOccupied, room.Note);
-      }
-      if (pending) ImGui.EndDisabled();
-    }
 
     if (!noteDrafts.TryGetValue(room.Id, out var draft))
       draft = room.Note ?? "";
