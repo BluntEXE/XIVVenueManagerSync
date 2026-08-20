@@ -83,6 +83,7 @@ namespace VenueManager
     public bool xivAppInventoryEnabled = false;
     public List<VipPatron> xivAppVipPatrons = new();
     public List<BannedPatron> xivAppBannedPatrons = new();
+    public List<FroggeMember> xivAppFroggeMembers = new();
     public string? currentXivAppVenueId;
 
     // Gates patron-visit sync for "sync only during events" — see ARCHITECTURE.md § Patron sync & chat alerts
@@ -141,6 +142,12 @@ namespace VenueManager
 
         xivAppInventoryEnabled = await xivAppClient.Venue.GetInventoryEnabledAsync(target.Id);
         Log.Information("Auto-loaded inventory-enabled={0} for venue {VenueId}", xivAppInventoryEnabled, target.Id);
+
+        if (target.FroggeConnected)
+        {
+          xivAppFroggeMembers = await xivAppClient.Venue.GetFroggeMembersAsync(target.Id);
+          Log.Information("Auto-loaded {Count} frogge member(s) for venue {VenueId}", xivAppFroggeMembers.Count, target.Id);
+        }
       }
       catch (Exception ex)
       {

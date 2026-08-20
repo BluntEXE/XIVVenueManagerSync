@@ -208,5 +208,41 @@ namespace VenueManager
         error => new LogTransactionResult { Success = false, Error = error },
         _ => Task.FromResult(new LogTransactionResult { Success = true }));
     }
+
+    public Task<List<FroggeMember>> GetFroggeMembersAsync(string venueId) =>
+      _client.GetAsync<FroggeMembersResponse, List<FroggeMember>>(
+        $"/api/plugin/rooms/frogge/members?venueId={venueId}",
+        r => r?.Members ?? new List<FroggeMember>(),
+        new List<FroggeMember>(),
+        "get frogge members");
+
+    public Task<LogTransactionResult> PostRoomsToDiscordAsync(string venueId)
+    {
+      var request = new { venueId };
+      return _client.PostForResultAsync<object, LogTransactionResult>(
+        "/api/plugin/rooms/frogge/post",
+        request,
+        "post rooms to discord",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        _ => Task.FromResult(new LogTransactionResult { Success = true }));
+    }
+
+    public Task<LogTransactionResult> SetRoomOwnerAsync(string venueId, string roomId, string? ownerDiscordId)
+    {
+      var request = new SetRoomOwnerRequest
+      {
+        VenueId = venueId,
+        RoomId = roomId,
+        OwnerDiscordId = ownerDiscordId,
+      };
+      return _client.PostForResultAsync<SetRoomOwnerRequest, LogTransactionResult>(
+        "/api/plugin/rooms/frogge/owner",
+        request,
+        "set room owner",
+        () => new LogTransactionResult { Success = false, Error = "API not configured. Please set your API key in settings." },
+        error => new LogTransactionResult { Success = false, Error = error },
+        _ => Task.FromResult(new LogTransactionResult { Success = true }));
+    }
   }
 }

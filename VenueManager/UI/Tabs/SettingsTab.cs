@@ -653,6 +653,7 @@ public class SettingsTab : ITab
     await FetchXivAppVipPatronsAsync(venueId);
     await FetchXivAppBannedPatronsAsync(venueId);
     await FetchXivAppInventoryEnabledAsync(venueId);
+    await FetchFroggeMembersAsync(venueId);
 
     xivAppStatus = $"✓ Loaded: {plugin.xivAppRoles.Count} roles, {plugin.availableServices.Count} services, {plugin.xivAppVipPatrons.Count} VIPs, {plugin.xivAppBannedPatrons.Count} banned";
     xivAppStatusColor = StatusOk;
@@ -815,6 +816,19 @@ public class SettingsTab : ITab
       Plugin.Log.Information("Fetched {Count} services for venue {VenueId}", response.Services.Count, venueId);
     } catch (Exception ex) {
       Plugin.Log.Error("Failed to fetch services: {0}", ex.Message);
+    }
+  }
+
+  private async Task FetchFroggeMembersAsync(string venueId)
+  {
+    try {
+      if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
+
+      var members = await plugin.xivAppClient.Venue.GetFroggeMembersAsync(venueId);
+      plugin.xivAppFroggeMembers = members;
+      Plugin.Log.Information("Fetched {Count} frogge member(s) for venue {VenueId}", members.Count, venueId);
+    } catch (Exception ex) {
+      Plugin.Log.Error("Failed to fetch frogge members: {0}", ex.Message);
     }
   }
 }

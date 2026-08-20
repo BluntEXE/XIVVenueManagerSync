@@ -30,6 +30,7 @@ public class RoomsTab : ITab
 
   private HashSet<string> pendingRoomIds = new();
   private int selectedDurationIndex = -1;
+  private string? postDiscordStatus = null;
 
   private static readonly (string Label, int Minutes)[] DurationOptions = {
     ("30 min", 30), ("1 hr", 60), ("1:30", 90), ("2 hr", 120),
@@ -63,8 +64,25 @@ public class RoomsTab : ITab
       return;
     }
 
+    bool froggeReady = plugin.xivAppVenues.Any(v => v.Id == plugin.currentXivAppVenueId && v.FroggeConnected);
+
+    if (froggeReady)
+    {
+      using (ThemeManager.PrimaryButton())
+      {
+        if (ImGui.SmallButton("Post to Discord"))
+          _ = PostToDiscordAsync();
+      }
+      if (!string.IsNullOrEmpty(postDiscordStatus))
+      {
+        ImGui.SameLine();
+        ImGui.TextDisabled(postDiscordStatus);
+      }
+      ImGui.Spacing();
+    }
+
     foreach (var room in rooms)
-      drawRoomRow(room);
+      drawRoomRow(room, froggeReady);
 
     if (!string.IsNullOrEmpty(statusMessage))
     {
@@ -75,7 +93,7 @@ public class RoomsTab : ITab
     ImGui.EndChild();
   }
 
-  private void drawRoomRow(Room room)
+  private void drawRoomRow(Room room, bool froggeReady)
   {
     var statusColor = Colors.XivGreen;
     var statusLabel = "Free";
@@ -99,6 +117,14 @@ public class RoomsTab : ITab
     ImGui.TextColored(statusColor, statusLabel);
     ImGui.SameLine();
     ImGui.Text(room.Name);
+
+    if (froggeReady && !string.IsNullOrEmpty(room.OwnerDiscordId))
+    {
+      ImGui.SameLine();
+      var member = plugin.xivAppFroggeMembers.FirstOrDefault(m => m.Id == room.OwnerDiscordId);
+      var ownerLabel = member != null ? member.Username : room.OwnerDiscordId[..Math.Min(8, room.OwnerDiscordId.Length)];
+      ImGui.TextDisabled($"({ownerLabel})");
+    }
 
     bool pending = pendingRoomIds.Contains(room.Id);
     bool isCurrentRoom = plugin.pluginState.currentHouse.room == room.RoomNumber;
@@ -131,6 +157,28 @@ public class RoomsTab : ITab
         if (ImGui.SmallButton($"Release##{room.Id}"))
           _ = ReleaseRoomAsync(room);
       }
+      if (pending) ImGui.EndDisabled();
+    }
+
+    if (froggeReady && room.IsOccupied)
+    {
+      ImGui.SameLine();
+      var currentOwner = room.OwnerDiscordId ?? "";
+      if (pending) ImGui.BeginDisabled();
+      ImGui.PushItemWidth(140);
+      if (ImGui.BeginCombo($"Owner##{room.Id}", GetOwnerDisplay(room)))
+      {
+        if (ImGui.Selectable("(none)", currentOwner == ""))
+          _ = SetRoomOwnerAsync(room, null);
+        foreach (var m in plugin.xivAppFroggeMembers)
+        {
+          bool isSelected = m.Id == currentOwner;
+          if (ImGui.Selectable($"{m.Username}##{m.Id}", isSelected))
+            _ = SetRoomOwnerAsync(room, m.Id);
+        }
+        ImGui.EndCombo();
+      }
+      ImGui.PopItemWidth();
       if (pending) ImGui.EndDisabled();
     }
 
@@ -303,6 +351,62 @@ public class RoomsTab : ITab
       else
       {
         statusMessage = $"Failed to update {room.Name}: {result.Error ?? "unknown error"}";
+        statusIsError = true;
+      }
+    }
+    catch (Exception ex)
+    {
+      statusMessage = $"Error: {ex.Message}";
+      statusIsError = true;
+    }
+    finally
+    {
+      pendingRoomIds.Remove(room.Id);
+    }
+  }
+
+  private string GetOwnerDisplay(Room room)
+  {
+    if (string.IsNullOrEmpty(room.OwnerDiscordId)) return "(none)";
+    var member = plugin.xivAppFroggeMembers.FirstOrDefault(m => m.Id == room.OwnerDiscordId);
+    return member != null ? member.Username : room.OwnerDiscordId[..Math.Min(12, room.OwnerDiscordId.Length)];
+  }
+
+  private async Task PostToDiscordAsync()
+  {
+    if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
+
+    postDiscordStatus = "Posting...";
+    try
+    {
+      var result = await plugin.xivAppClient.Venue.PostRoomsToDiscordAsync(plugin.currentXivAppVenueId);
+      postDiscordStatus = result.Success ? "Posted!" : result.Error ?? "Failed";
+    }
+    catch (Exception ex)
+    {
+      postDiscordStatus = $"Error: {ex.Message}";
+    }
+  }
+
+  private async Task SetRoomOwnerAsync(Room room, string? ownerDiscordId)
+  {
+    if (plugin.xivAppClient == null || string.IsNullOrEmpty(plugin.currentXivAppVenueId)) return;
+    if (!pendingRoomIds.Add(room.Id)) return;
+
+    try
+    {
+      var result = await plugin.xivAppClient.Venue.SetRoomOwnerAsync(
+        plugin.currentXivAppVenueId, room.Id, ownerDiscordId);
+
+      if (result.Success)
+      {
+        statusMessage = ownerDiscordId != null ? $"Assigned owner to {room.Name}" : $"Cleared owner for {room.Name}";
+        statusIsError = false;
+        _ = FetchRoomsAsync();
+      }
+      else
+      {
+        statusMessage = $"Failed: {result.Error ?? "unknown error"}";
         statusIsError = true;
       }
     }

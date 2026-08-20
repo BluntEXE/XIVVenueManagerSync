@@ -20,6 +20,9 @@ namespace VenueManager
 
     [JsonPropertyName("role")]
     public string Role { get; set; } = "";
+
+    [JsonPropertyName("froggeConnected")]
+    public bool FroggeConnected { get; set; }
   }
 
   public class Service
@@ -167,6 +170,9 @@ namespace VenueManager
 
     [JsonPropertyName("roomNumber")]
     public int RoomNumber { get; set; }
+
+    [JsonPropertyName("ownerDiscordId")]
+    public string? OwnerDiscordId { get; set; }
   }
 
   public class RoomsResponse
@@ -310,6 +316,36 @@ namespace VenueManager
 
     [JsonPropertyName("reason")]
     public string Reason { get; set; } = "";
+  }
+
+  public class FroggeMember
+  {
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = "";
+
+    [JsonPropertyName("globalName")]
+    public string? GlobalName { get; set; }
+  }
+
+  public class FroggeMembersResponse
+  {
+    [JsonPropertyName("members")]
+    public List<FroggeMember> Members { get; set; } = new();
+  }
+
+  public class SetRoomOwnerRequest
+  {
+    [JsonPropertyName("venueId")]
+    public string VenueId { get; set; } = "";
+
+    [JsonPropertyName("roomId")]
+    public string RoomId { get; set; } = "";
+
+    [JsonPropertyName("ownerDiscordId")]
+    public string? OwnerDiscordId { get; set; }
   }
 
   public class LogTransactionResult
