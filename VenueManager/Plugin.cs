@@ -68,8 +68,8 @@ namespace VenueManager
     public volatile ShiftDto? activeShift = null;
     private long lastShiftPollMs = 0;
     private volatile bool shiftPollInFlight = false;
-    private long lastVipBannedPollMs = 0;
-    private volatile bool vipBannedPollInFlight = false;
+    private long lastBannedPollMs = 0;
+    private volatile bool bannedPollInFlight = false;
     private volatile string? _shiftReminderShiftId = null;
     private long _shiftReminderLastMs = 0;
     // Non-blocking try-acquire mutex shared by chat-command and UI clock actions
@@ -81,7 +81,6 @@ namespace VenueManager
     public List<Role> xivAppRoles = new();
     public List<Service> availableServices = new();
     public bool xivAppInventoryEnabled = false;
-    public List<VipPatron> xivAppVipPatrons = new();
     public List<BannedPatron> xivAppBannedPatrons = new();
     public string? currentXivAppVenueId;
 
@@ -132,9 +131,6 @@ namespace VenueManager
         var servicesResp = await xivAppClient.Venue.GetServicesAsync(target.Id);
         availableServices = servicesResp?.Services ?? new List<Service>();
         Log.Information("Auto-loaded {Count} service(s) for venue {VenueId}", availableServices.Count, target.Id);
-
-        xivAppVipPatrons = await xivAppClient.Venue.GetVipPatronsAsync(target.Id);
-        Log.Information("Auto-loaded {Count} VIP patron(s) for venue {VenueId}", xivAppVipPatrons.Count, target.Id);
 
         xivAppBannedPatrons = await xivAppClient.Venue.GetBannedPatronsAsync(target.Id);
         Log.Information("Auto-loaded {Count} banned patron(s) for venue {VenueId}", xivAppBannedPatrons.Count, target.Id);
@@ -896,32 +892,31 @@ namespace VenueManager
     }
 
     // Polls every 30s so VIP/banned status set on the dashboard reaches the plugin without a manual resync
-    private void PollVipBannedPatronsAsync()
+    private void PollBannedPatronsAsync()
     {
-      if (vipBannedPollInFlight) return;
+      if (bannedPollInFlight) return;
       var nowMs = Environment.TickCount64;
-      if (nowMs - lastVipBannedPollMs < 30_000) return;
+      if (nowMs - lastBannedPollMs < 30_000) return;
       if (xivAppClient == null || !xivAppClient.IsConfigured) return;
       if (string.IsNullOrEmpty(currentXivAppVenueId)) return;
 
-      vipBannedPollInFlight = true;
-      lastVipBannedPollMs = nowMs;
+      bannedPollInFlight = true;
+      lastBannedPollMs = nowMs;
       var venueId = currentXivAppVenueId;
 
       _ = Task.Run(async () =>
       {
         try
         {
-          xivAppVipPatrons = await xivAppClient.Venue.GetVipPatronsAsync(venueId);
           xivAppBannedPatrons = await xivAppClient.Venue.GetBannedPatronsAsync(venueId);
         }
         catch (Exception ex)
         {
-          Log.Warning($"VIP/banned patron poll failed: {ex.Message}");
+          Log.Warning($"Banned patron poll failed: {ex.Message}");
         }
         finally
         {
-          vipBannedPollInFlight = false;
+          bannedPollInFlight = false;
         }
       });
     }
@@ -983,7 +978,7 @@ namespace VenueManager
       try
       {
         UpdateDtrBar();
-        PollVipBannedPatronsAsync();
+        PollBannedPatronsAsync();
 
         // Exterior-entry poll — see ARCHITECTURE.md § Housing/location detection
         if (!pluginState.userInHouse && entryPollStopwatch.ElapsedMilliseconds > 1000)
@@ -1269,11 +1264,6 @@ namespace VenueManager
       chatMessage->Dtor();
     }
 
-    private bool isVipPatron(Player player)
-    {
-      return xivAppVipPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
-    }
-
     private bool isBannedPatron(Player player)
     {
       return xivAppBannedPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
@@ -1318,11 +1308,6 @@ namespace VenueManager
       if (player.entryCount == 1 && !Configuration.showChatAlertEntry && !isAlreadyHere) return;
 
       if (this.Configuration.showPluginNameInChat) messageBuilder.AddText($"[{Name}] ");
-
-      if (isVipPatron(player))
-      {
-        messageBuilder.AddText("★ VIP ");
-      }
 
       if (isBannedPatron(player))
       {

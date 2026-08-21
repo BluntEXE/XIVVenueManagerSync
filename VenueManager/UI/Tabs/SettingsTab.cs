@@ -645,16 +645,15 @@ public class SettingsTab : ITab
   // Writes terminal "✓ Loaded: …" status regardless of per-fetch errors — Fetch*Async helpers already log+swallow, partial data is still useful
   private async Task LoadVenueDataWithFeedbackAsync(string venueId, string venueName)
   {
-    xivAppStatus = $"Loading roles + services + VIPs + bans for {venueName}…";
+    xivAppStatus = $"Loading roles + services + bans for {venueName}…";
     xivAppStatusColor = Colors.XivOverlay0;
 
     await FetchXivAppRolesAsync(venueId);
     await FetchXivAppServicesAsync(venueId);
-    await FetchXivAppVipPatronsAsync(venueId);
     await FetchXivAppBannedPatronsAsync(venueId);
     await FetchXivAppInventoryEnabledAsync(venueId);
 
-    xivAppStatus = $"✓ Loaded: {plugin.xivAppRoles.Count} roles, {plugin.availableServices.Count} services, {plugin.xivAppVipPatrons.Count} VIPs, {plugin.xivAppBannedPatrons.Count} banned";
+    xivAppStatus = $"✓ Loaded: {plugin.xivAppRoles.Count} roles, {plugin.availableServices.Count} services, {plugin.xivAppBannedPatrons.Count} banned";
     xivAppStatusColor = StatusOk;
   }
 
@@ -745,19 +744,6 @@ public class SettingsTab : ITab
       xivAppStatus = $"✗ {ex.Message}";
       xivAppStatusColor = StatusErr;
       Plugin.Log.Error("Failed to fetch venues: {0}", ex.Message);
-    }
-  }
-
-  private async Task FetchXivAppVipPatronsAsync(string venueId)
-  {
-    try {
-      if (plugin.xivAppClient == null || !plugin.xivAppClient.IsConfigured) return;
-
-      var vipPatrons = await plugin.xivAppClient.Venue.GetVipPatronsAsync(venueId);
-      plugin.xivAppVipPatrons = vipPatrons;
-      Plugin.Log.Information("Fetched {Count} VIP patron(s) for venue {VenueId}", vipPatrons.Count, venueId);
-    } catch (Exception ex) {
-      Plugin.Log.Error("Failed to fetch VIP patrons: {0}", ex.Message);
     }
   }
 

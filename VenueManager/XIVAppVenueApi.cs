@@ -59,13 +59,6 @@ namespace VenueManager
         new List<Role>(),
         "get roles");
 
-    public Task<List<VipPatron>> GetVipPatronsAsync(string venueId) =>
-      _client.GetAsync<VipPatronsResponse, List<VipPatron>>(
-        $"/api/plugin/patrons/vip?venueId={venueId}",
-        r => r?.VipPatrons ?? new List<VipPatron>(),
-        new List<VipPatron>(),
-        "get VIP patrons");
-
     public Task<List<BannedPatron>> GetBannedPatronsAsync(string venueId) =>
       _client.GetAsync<BannedPatronsResponse, List<BannedPatron>>(
         $"/api/plugin/patrons/banned?venueId={venueId}",

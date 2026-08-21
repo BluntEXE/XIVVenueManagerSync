@@ -16,11 +16,6 @@ public class GuestListWidget
     this.plugin = plugin;
   }
 
-  private bool isVip(Player player)
-  {
-    return plugin.xivAppVipPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
-  }
-
   private bool isBanned(Player player)
   {
     return plugin.xivAppBannedPatrons.Any(v => v.CharacterName == player.Name && v.World == player.WorldName);
@@ -172,10 +167,6 @@ public class GuestListWidget
         ImGui.TableNextColumn();
         ImGui.TextColored(color, player.Value.latestEntry.ToString("h:mm tt"));
         ImGui.TableNextColumn();
-        if (isVip(player.Value)) {
-          ImGui.TextColored(VenueManager.UI.Colors.XivGold, "★ ");
-          ImGui.SameLine(0, 0);
-        }
         if (isBanned(player.Value)) {
           ImGui.TextColored(VenueManager.UI.Colors.XivRed, "⚠ ");
           if (ImGui.IsItemHovered()) {
