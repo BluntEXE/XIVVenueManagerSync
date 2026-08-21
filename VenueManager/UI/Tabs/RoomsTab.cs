@@ -115,6 +115,17 @@ public class RoomsTab : ITab
     }
 
     ImGui.TextColored(statusColor, statusLabel);
+    if (ImGui.IsItemHovered())
+    {
+      ImGui.SetTooltip(statusLabel switch
+      {
+        "Free" => "Room is available for reservation.",
+        "Occupied" => "Room is currently reserved by a patron.",
+        "Locked" => "Room is locked. Patrons cannot reserve it, but staff can still toggle it.",
+        "Disabled" => "Room is hidden from the reservation list entirely.",
+        _ => ""
+      });
+    }
     ImGui.SameLine();
     ImGui.Text(room.Name);
 
@@ -144,6 +155,8 @@ public class RoomsTab : ITab
         selectedDurationIndex = durationIndex;
         _ = ReserveRoomAsync(room, DurationOptions[durationIndex].Minutes);
       }
+      if (ImGui.IsItemHovered())
+        ImGui.SetTooltip("Select how long to reserve this room.");
       if (pending) ImGui.EndDisabled();
 
       ImGui.PopItemWidth();
@@ -157,6 +170,8 @@ public class RoomsTab : ITab
         if (ImGui.SmallButton($"Release##{room.Id}"))
           _ = ReleaseRoomAsync(room);
       }
+      if (ImGui.IsItemHovered())
+        ImGui.SetTooltip("Release this room so others can reserve it.");
       if (pending) ImGui.EndDisabled();
     }
 
@@ -189,12 +204,16 @@ public class RoomsTab : ITab
       if (pending) ImGui.BeginDisabled();
       if (ImGui.SmallButton(room.Locked ? $"Unlock##{room.Id}" : $"Lock##{room.Id}"))
         _ = ToggleLockAsync(room);
+      if (ImGui.IsItemHovered())
+        ImGui.SetTooltip(room.Locked ? "Unlock this room so patrons can reserve it." : "Lock this room to prevent new reservations.");
       if (pending) ImGui.EndDisabled();
 
       ImGui.SameLine();
       if (pending) ImGui.BeginDisabled();
       if (ImGui.SmallButton(room.Disabled ? $"Enable##{room.Id}" : $"Disable##{room.Id}"))
         _ = ToggleDisableAsync(room);
+      if (ImGui.IsItemHovered())
+        ImGui.SetTooltip(room.Disabled ? "Enable this room to make it visible again." : "Disable this room to hide it from patrons.");
       if (pending) ImGui.EndDisabled();
     }
 
