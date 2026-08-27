@@ -39,7 +39,7 @@ Add the custom plugin repository to Dalamud (https://raw.githubusercontent.com/B
 
 ## Configuration
 
-1. Open plugin settings (`/vm` → Settings tab)
+1. Open plugin settings (`/xvm` → Settings tab)
 2. Enter your XIVVenueManager API key
 3. Enter the server URL (e.g. `https://xivvenuemanager.com`)
 4. Select which venue to log to
