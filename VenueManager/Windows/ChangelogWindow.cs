@@ -15,29 +15,16 @@ public class ChangelogWindow : Window, IDisposable
 
     private static readonly ChangelogEntry[] Entries =
     [
-        new("v3.10.10", "August 2026", "Garden Radius Fix", IsCurrent: true,
-        [
-            "Fixed phantom patron detection in the garden — the exterior presence radius was a flat 50 yalms from you regardless of plot, letting passersby on the street or a neighboring lawn register as guests. Now a flat 15 yalms.",
-            "Testing channel.",
-        ]),
-
-        new("v3.10.6 – v3.10.9", "August 2026", "Exterior Tracking Polish", IsCurrent: false,
-        [
-            "Fixed exterior header staying on '(no venue)' for a venue saved before exterior tracking shipped, when approached from outside before ever going in",
-            "Fixed chat sync messages firing in every house you walk into instead of just registered venues",
-            "VIP and ban badges now refresh automatically every 30s instead of requiring a manual Fetch Venues",
-            "Sales dropdown and Inventory tab stock count now update immediately after a sale",
-            "Internal refactor of the venue/shift/patron API classes; server-side dedup confirmed correct for same-character enter/leave transitions across multiple staff plugins",
-            "Testing channel.",
-        ]),
-
-        new("v3.10.0 – v3.10.5", "August 2026", "Exterior Plot Tracking", IsCurrent: false,
+        new("v3.11.0", "August 2026", "Exterior Plot Tracking", IsCurrent: true,
         [
             "Patron tracking now works from the plot exterior, not just the house interior",
             "New Rooms tab for room status, new Inventory tab linking drinks to real FFXIV items",
-            "VIP and ban badges added to the live guest list",
-            "Several fixes to exterior-only entry: direct-entry detection, debounced misreads, tracking not clearing on exit, header not updating on re-entry",
-            "Testing channel.",
+            "VIP and ban badges added to the live guest list, refreshing automatically every 30s",
+            "Fixed phantom patron detection in the garden — the exterior presence radius was a flat 50 yalms from you regardless of plot, letting passersby on the street or a neighboring lawn register as guests. Now a flat 15 yalms.",
+            "Fixed exterior header staying on '(no venue)' for a venue saved before exterior tracking shipped, when approached from outside before ever going in",
+            "Fixed chat sync messages firing in every house you walk into instead of just registered venues",
+            "Sales dropdown and Inventory tab stock count now update immediately after a sale",
+            "Promoted from testing (v3.10.0 – v3.10.10) to stable",
         ]),
 
         new("v3.9.2", "July 2026", "Tips & Venue Name Fix", IsCurrent: false,
