@@ -1434,6 +1434,8 @@ namespace VenueManager
       });
     }
 
+    private const float OutdoorGuestRadius = 15f;
+
     private static unsafe bool IsOutsidePlotBounds(System.Numerics.Vector3 position)
     {
       var hm = HousingManager.Instance();
@@ -1442,7 +1444,7 @@ namespace VenueManager
       if (self == null) return false;
       var dx = self.Position.X - position.X;
       var dz = self.Position.Z - position.Z;
-      return dx * dx + dz * dz > 2500f;
+      return dx * dx + dz * dz > OutdoorGuestRadius * OutdoorGuestRadius;
     }
 
   } // Plugin
